@@ -44,7 +44,12 @@ export function LobbyFooter() {
           {t('footer.admin')}
         </button>
       </div>
-      <div className="footer-disclaimer">{t('footer.disclaimer')}</div>
+      <div className="footer-disclaimer">
+        {t('footer.disclaimer')}{' '}
+        <a href="https://www.amazon.com/Games-Hanabi-Card-Game/dp/B00CYQ9Q76/" target="_blank" rel="noopener noreferrer" className="footer-buy-link">
+          {t('footer.buyOriginal')}
+        </a>
+      </div>
     </footer>
   );
 }

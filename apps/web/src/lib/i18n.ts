@@ -37,7 +37,8 @@ const translations = {
 
     // Footer
     'footer.builtFor': 'Built for AI cooperation research',
-    'footer.disclaimer': 'This is an original implementation inspired by cooperative fireworks card games. Not affiliated with any existing game or publisher.',
+    'footer.disclaimer': 'Inspired by Hanabi, the brilliant cooperative card game by Antoine Bauza.',
+    'footer.buyOriginal': 'Love this type of game? Buy the original!',
 
     // Waiting Room
     'waiting.title': 'Waiting Room',
@@ -178,7 +179,8 @@ const translations = {
 
     // 푸터
     'footer.builtFor': 'AI 협동 연구를 위해 만들어졌습니다',
-    'footer.disclaimer': '협동 불꽃놀이 카드 게임에서 영감을 받은 독자적 구현입니다. 기존 게임이나 퍼블리셔와 관련이 없습니다.',
+    'footer.disclaimer': 'Antoine Bauza의 협동 카드 게임 Hanabi에서 영감을 받았습니다.',
+    'footer.buyOriginal': '이런 게임이 마음에 드셨다면, 원작을 구매해보세요!',
 
     // 대기실
     'waiting.title': '대기실',

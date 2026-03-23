@@ -1509,14 +1509,22 @@ select.input {
   color: #556;
 }
 .footer-disclaimer {
-  color: #445;
-  font-size: 10px;
-  margin-top: 8px;
+  color: #556;
+  font-size: 11px;
+  margin-top: 10px;
   text-align: center;
   max-width: 480px;
   margin-left: auto;
   margin-right: auto;
-  line-height: 1.4;
+  line-height: 1.5;
+}
+.footer-buy-link {
+  color: #f1c40f;
+  text-decoration: none;
+  font-weight: 500;
+}
+.footer-buy-link:hover {
+  text-decoration: underline;
 }
 
 /* --- Mobile Responsive --- */
