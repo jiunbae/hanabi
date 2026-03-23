@@ -42,14 +42,10 @@ export function DiscardPileView({ cards, fireworks }: DiscardPileViewProps) {
     return RANK_COPIES[rank] - discarded === 1;
   };
 
-  if (cards.length === 0) {
-    return <div className="discard-pile" style={{ color: '#445', fontSize: 12 }}>{t('discard.empty')}</div>;
-  }
-
   return (
     <div className="discard-pile">
       <div style={{ fontSize: 12, color: '#667', marginBottom: 6, fontWeight: 600 }}>
-        {t('discard.count', { n: cards.length })}
+        {cards.length === 0 ? t('discard.empty') : t('discard.count', { n: cards.length })}
       </div>
       <div className="discard-grid">
         {/* Header row: ranks */}

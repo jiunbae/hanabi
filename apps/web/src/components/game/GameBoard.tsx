@@ -85,6 +85,7 @@ function GameOverScreen({ score, scoreRating, fireworks, gameId, apiKey, onBack 
   };
 
   return (
+    <div className="game-over-overlay">
     <div className="game-over">
       {score >= 20 && <ConfettiEffect />}
       <div className="game-over-title">{t('game.gameOver')}</div>
@@ -114,6 +115,7 @@ function GameOverScreen({ score, scoreRating, fireworks, gameId, apiKey, onBack 
       <button className="btn btn-primary btn-lg" style={{ marginTop: 16 }} onClick={onBack}>
         {t('game.backToLobby')}
       </button>
+    </div>
     </div>
   );
 }
@@ -414,9 +416,10 @@ export function GameBoard() {
         })}
       </svg>
 
-      <DiscardPileView cards={view.discardPile} fireworks={view.fireworks} />
-
-      <ActionLog actions={view.actionHistory} myIndex={view.myIndex} />
+      <div className="game-bottom-row">
+        <DiscardPileView cards={view.discardPile} fireworks={view.fireworks} />
+        <ActionLog actions={view.actionHistory} myIndex={view.myIndex} />
+      </div>
 
       {view.status === 'finished' && (
         <GameOverScreen

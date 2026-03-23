@@ -466,17 +466,31 @@ select.input {
 .waiting-dots span:nth-child(3) { animation-delay: 0.4s; }
 
 /* ===== Game Over ===== */
+.game-over-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.3s ease-out;
+}
 .game-over {
   animation: scaleIn 0.5s ease-out;
   text-align: center;
-  padding: 32px;
+  padding: 32px 40px;
   background: linear-gradient(135deg, #1a1a2e, #16213e);
   border-radius: 14px;
+  max-width: 420px;
+  width: 90%;
   border: 1px solid rgba(241, 196, 15, 0.15);
-  margin-top: 20px;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
 }
 .game-over::before {
   content: '';
@@ -1707,6 +1721,29 @@ select.input {
   color: #667;
   font-size: 11px;
   min-width: 24px;
+}
+
+/* ── Game Bottom Row (discard + action log side by side) ── */
+
+.game-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.game-bottom-row .discard-pile {
+  min-height: 80px;
+}
+.game-bottom-row .action-log-container {
+  min-height: 80px;
+}
+.game-bottom-row .action-log-body {
+  max-height: 180px;
+}
+@media (max-width: 600px) {
+  .game-bottom-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Ad Slots ── */

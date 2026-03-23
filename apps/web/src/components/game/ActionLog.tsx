@@ -10,7 +10,7 @@ interface ActionLogProps {
 export function ActionLog({ actions, myIndex }: ActionLogProps) {
   const t = useT();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
     if (scrollRef.current && isOpen) {
@@ -35,9 +35,7 @@ export function ActionLog({ actions, myIndex }: ActionLogProps) {
     }
   };
 
-  if (actions.length === 0) return null;
-
-  const lastAction = actions[actions.length - 1];
+  const lastAction = actions.length > 0 ? actions[actions.length - 1] : null;
 
   return (
     <div className="action-log-container">
@@ -49,7 +47,7 @@ export function ActionLog({ actions, myIndex }: ActionLogProps) {
         <span className="action-log-toggle-icon">{isOpen ? '▾' : '▸'}</span>
         <span className="action-log-toggle-label">{t('game.actionLog')}</span>
         <span className="action-log-toggle-count">{actions.length}</span>
-        {!isOpen && (
+        {!isOpen && lastAction && (
           <span className="action-log-preview">
             — {formatAction(lastAction)}
           </span>
