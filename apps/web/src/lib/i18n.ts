@@ -111,6 +111,12 @@ const translations = {
     'tutorial.tip2': 'Completing a color stack (playing a 5) earns a bonus clue token.',
     'tutorial.tip3': 'Fives are unique — never discard them!',
 
+    // Leaderboard
+    'leaderboard.title': 'Top Scores',
+    'game.nameYourGame': 'Name this game',
+    'game.saveRecord': 'Save',
+    'game.recordSaved': 'Record saved!',
+
     // AI
     'waiting.addAI': 'Add AI Player',
     'waiting.aiPlayer': 'AI',
@@ -243,6 +249,12 @@ const translations = {
     'tutorial.tip1': '버린 카드 더미는 공개 — 어떤 카드가 남았는지 추적하세요.',
     'tutorial.tip2': '5를 올리면 (색상 완성) 보너스 단서 토큰을 받습니다.',
     'tutorial.tip3': '5는 색상별 1장뿐 — 절대 버리지 마세요!',
+
+    // 리더보드
+    'leaderboard.title': '최고 점수',
+    'game.nameYourGame': '게임 이름 입력',
+    'game.saveRecord': '저장',
+    'game.recordSaved': '기록이 저장되었습니다!',
 
     // AI
     'waiting.addAI': 'AI 플레이어 추가',

@@ -6,6 +6,7 @@ import { games } from './routes/games.js';
 import { admin } from './routes/admin.js';
 import { HanabiError } from '@hanabi/shared';
 import { GAME_RULES } from '@hanabi/engine';
+import { gameManager } from './services/game-manager.js';
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
 
@@ -22,6 +23,13 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.route('/api/games', games);
 app.route('/api/admin', admin);
+
+// Public leaderboard (no auth required)
+app.get('/api/leaderboard', async (c) => {
+  const limit = Math.min(parseInt(c.req.query('limit') ?? '20', 10), 100);
+  const entries = await gameManager.getLeaderboard(limit);
+  return c.json({ leaderboard: entries });
+});
 
 // Static game rules + action format reference for AI agents
 app.get('/api/rules', (c) => c.json({

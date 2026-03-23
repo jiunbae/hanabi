@@ -109,21 +109,27 @@ export class GeminiProvider implements LLMProvider {
 
 // ─── JSON Parsing Utility ───
 
+function extractJSON(text: string): string {
+  const start = text.indexOf('{');
+  if (start === -1) throw new Error(`No JSON found in LLM response: ${text.slice(0, 200)}`);
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') depth--;
+    if (depth === 0) return text.slice(start, i + 1);
+  }
+  throw new Error(`Unbalanced JSON in LLM response: ${text.slice(0, 200)}`);
+}
+
 function parseActionFromLLM(text: string): GameAction {
-  // Strip markdown code blocks if present
   let cleaned = text.trim();
   const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch) {
     cleaned = codeBlockMatch[1].trim();
   }
 
-  // Try to find JSON object in the response
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error(`Could not find JSON in LLM response: ${text}`);
-  }
-
-  const action = JSON.parse(jsonMatch[0]);
+  const jsonStr = extractJSON(cleaned);
+  const action = JSON.parse(jsonStr);
 
   // Validate basic structure
   if (!action.type || !['play', 'discard', 'hint'].includes(action.type)) {

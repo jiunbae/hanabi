@@ -105,6 +105,31 @@ export function adminSetAIConfig(adminKey: string, config: { provider: string; m
   });
 }
 
+// Leaderboard
+
+export function getLeaderboard(limit = 20) {
+  return request<{ leaderboard: LeaderboardEntry[] }>(`/leaderboard?limit=${limit}`);
+}
+
+export function setGameName(gameId: string, apiKey: string, name: string) {
+  return request<{ success: boolean; gameName: string }>(`/games/${gameId}/name`, {
+    method: 'POST',
+    headers: { 'x-api-key': apiKey },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export interface LeaderboardEntry {
+  gameId: string;
+  gameName: string | null;
+  score: number;
+  players: string[];
+  numPlayers: number;
+  finishedAt: string;
+}
+
+// Admin types
+
 export interface AdminGameInfo {
   gameId: string;
   status: string;

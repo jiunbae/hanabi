@@ -1,7 +1,13 @@
 import { Hono } from 'hono';
+import { readFileSync, writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { gameManager } from '../services/game-manager.js';
 import { aiBotService } from '../services/ai-bot.js';
 import { HanabiError, ErrorCodes } from '@hanabi/shared';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PROMPTS_PATH = join(__dirname, '..', 'config', 'ai-prompts.json');
 
 const admin = new Hono();
 
@@ -80,6 +86,34 @@ admin.post('/ai-config', async (c) => {
     aiBotService.updateConfig(provider, model ?? '');
   }
   return c.json(aiBotService.getConfig());
+});
+
+// Get AI prompts config
+admin.get('/ai-prompts', (c) => {
+  try {
+    const config = JSON.parse(readFileSync(PROMPTS_PATH, 'utf-8'));
+    return c.json(config);
+  } catch {
+    return c.json({ error: 'Config file not found' }, 404);
+  }
+});
+
+// Update AI prompts config
+admin.post('/ai-prompts', async (c) => {
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof body !== 'object') {
+    throw new HanabiError('Invalid request body', ErrorCodes.INVALID_REQUEST);
+  }
+  try {
+    // Merge with existing config
+    const existing = JSON.parse(readFileSync(PROMPTS_PATH, 'utf-8'));
+    const updated = { ...existing, ...body };
+    if (body.system) updated.system = { ...existing.system, ...body.system };
+    writeFileSync(PROMPTS_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+    return c.json(updated);
+  } catch (e) {
+    throw new HanabiError(`Failed to update config: ${(e as Error).message}`, ErrorCodes.INVALID_REQUEST);
+  }
 });
 
 export { admin };

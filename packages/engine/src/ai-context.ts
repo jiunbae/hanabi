@@ -8,76 +8,87 @@
 import type { PlayerView, GameAction, Card, CardClue, Fireworks, Color } from './types.js';
 import { COLORS, RANK_COPIES, MAX_CLUE_TOKENS, MAX_STRIKES, MAX_SCORE } from './constants.js';
 
-// ─── Game Rules (static) ───
+// ─── Game Rules (static, comprehensive) ───
 
-export const GAME_RULES = `# Hanabi — Game Rules
+export const GAME_RULES = `# Hanabi — Rules
 
-Hanabi is a **cooperative** card game where players work together to build fireworks.
-Players can see everyone else's cards but NOT their own.
+## GOAL
+Build 5 firework displays (red, yellow, green, blue, white), each in order 1→2→3→4→5.
+Score = sum of top card in each display (max 25).
 
-## Cards
-- 5 colors: red, yellow, green, blue, white
-- Ranks 1–5 per color (50 cards total)
-- Copies per rank: 1→3, 2→2, 3→2, 4→2, 5→1
+## CORE RULE
+You CANNOT see your own cards. You can see all teammates' cards.
+You rely on hints from teammates to know what you hold.
 
-## Goal
-Build 5 firework piles (one per color), each from rank 1 to 5 in order.
-Perfect score = 25 (all five colors completed to rank 5).
+## CARDS
+- 5 colors × ranks 1-5 = 50 cards total
+- Copies per rank: 1×3, 2×2, 3×2, 4×2, 5×1
+- 5s have only 1 copy — losing one blocks that color.
 
-## Resources
-- Clue tokens: start at ${MAX_CLUE_TOKENS} (max ${MAX_CLUE_TOKENS})
-- Strikes: 0 (max ${MAX_STRIKES} — game over at ${MAX_STRIKES})
+## RESOURCES
+- Clue tokens: ${MAX_CLUE_TOKENS} max. Spent to give hints, recovered by discarding.
+- Strikes: ${MAX_STRIKES} max. Wrong plays cause strikes. ${MAX_STRIKES} strikes = game over.
 
-## Actions (one per turn)
-1. **Play a card** — Place a card from your hand onto a firework pile.
-   - Success: card rank is exactly (current pile level + 1) for that color.
-   - Completing rank 5 grants a bonus clue token (if below max).
-   - Failure: strike! The card is discarded. ${MAX_STRIKES} strikes = game over.
-2. **Discard a card** — Remove a card from your hand. Gain 1 clue token (if below max).
-   - Cannot discard when clue tokens are at maximum (${MAX_CLUE_TOKENS}).
-3. **Give a hint** — Costs 1 clue token. Tell another player about ALL cards in their hand matching a specific color or rank.
-   - Must have at least 1 clue token.
-   - Cannot hint yourself.
-   - The hint must touch at least 1 card.
+## ACTIONS (pick exactly one per turn)
 
-## End Conditions
-- **Win**: All 5 fireworks reach rank 5 (score 25).
-- **Loss**: 3 strikes accumulated.
-- **Deck exhausted**: Each player gets one more turn, then the game ends.
-  Final score = sum of highest rank in each firework pile.
+### 1. GIVE A HINT (cost: 1 clue token)
+Tell a teammate about ALL their cards matching a color OR a rank.
+- JSON: {"type":"hint","playerIndex":YOU,"targetIndex":TEAMMATE,"hint":{"type":"color","value":"red"}}
+- JSON: {"type":"hint","playerIndex":YOU,"targetIndex":TEAMMATE,"hint":{"type":"rank","value":1}}
 
-## Key Constraint
-You CANNOT see your own cards. You must rely on hints from other players
-and logical deduction based on game history to decide what to play or discard.
+### 2. PLAY A CARD
+Place a card on its color's display. Success only if rank = display top + 1.
+- Success: card added. Playing a 5 recovers 1 clue token.
+- Failure: strike + card lost.
+- JSON: {"type":"play","playerIndex":YOU,"cardIndex":POSITION}
+
+### 3. DISCARD A CARD (gain 1 clue token)
+Remove a card. Only available when clue tokens < ${MAX_CLUE_TOKENS}.
+- JSON: {"type":"discard","playerIndex":YOU,"cardIndex":POSITION}
+
+## GAME ENDS
+- All displays complete → score 25 (win)
+- ${MAX_STRIKES} strikes → game over (lose)
+- Deck empty → 1 final turn each
+
+## STRATEGY
+- Hint teammates about cards they can play NOW.
+- Only play cards you KNOW from clues.
+- Discard oldest un-clued card when tokens needed.
+- Never play unknown cards — strikes are costly.
 `;
 
-// ─── State Formatting ───
+// ─── Helpers ───
 
 function formatCard(card: { color?: Color; rank?: number }): string {
-  if (card.color && card.rank) return `${card.color[0].toUpperCase()}${card.rank}`;
+  if (card.color && card.rank) return `${card.color} ${card.rank}`;
   return '??';
 }
 
 function formatClues(clues: readonly CardClue[]): string {
   if (clues.length === 0) return 'no clues';
   return clues
-    .map((c) => (c.type === 'color' ? `color=${c.value}` : `rank=${c.value}`))
+    .map((c) => (c.type === 'color' ? `known color=${c.value}` : `known rank=${c.value}`))
     .join(', ');
 }
 
 function formatFireworks(fw: Fireworks): string {
-  return COLORS.map((c) => `${c}: ${fw[c]}/5`).join(', ');
+  return COLORS.map((c) => {
+    const level = fw[c];
+    const next = level + 1;
+    return `  ${c}: ${level}/5${next <= 5 ? ` (needs ${c} ${next} next)` : ' ✅ COMPLETE'}`;
+  }).join('\n');
 }
 
 function formatDiscardPile(pile: readonly Card[]): string {
-  if (pile.length === 0) return 'empty';
+  if (pile.length === 0) return '(empty)';
   const grouped = new Map<string, number>();
   for (const card of pile) {
     const key = formatCard(card);
     grouped.set(key, (grouped.get(key) ?? 0) + 1);
   }
   return Array.from(grouped.entries())
-    .map(([k, count]) => (count > 1 ? `${k}×${count}` : k))
+    .map(([k, count]) => (count > 1 ? `${k} ×${count}` : k))
     .join(', ');
 }
 
@@ -93,180 +104,205 @@ function formatAction(action: GameAction, playerNames?: string[]): string {
   }
 }
 
-function formatLegalAction(action: GameAction): string {
-  switch (action.type) {
-    case 'play':
-      return `Play card at index ${action.cardIndex}`;
-    case 'discard':
-      return `Discard card at index ${action.cardIndex}`;
-    case 'hint':
-      return `Hint Player ${action.targetIndex} about ${action.hint.type}=${action.hint.value}`;
-  }
-}
+// ─── Smart Analysis ───
 
-// ─── Remaining Cards Tracker ───
+function analyzeOwnHand(view: PlayerView): string {
+  const hand = view.hands[view.myIndex];
+  const lines: string[] = [];
 
-function getRemainingCards(view: PlayerView): Map<string, number> {
-  // Start with full deck counts
-  const remaining = new Map<string, number>();
-  for (const color of COLORS) {
-    for (const [rankStr, count] of Object.entries(RANK_COPIES)) {
-      remaining.set(`${color[0].toUpperCase()}${rankStr}`, count);
+  for (let idx = 0; idx < hand.cards.length; idx++) {
+    const clues = hand.cards[idx].clues;
+    const knownColor = clues.find(c => c.type === 'color')?.value as Color | undefined;
+    const knownRank = clues.find(c => c.type === 'rank')?.value as number | undefined;
+
+    if (knownColor && knownRank) {
+      const needed = view.fireworks[knownColor] + 1;
+      if (knownRank === needed) {
+        lines.push(`  [${idx}] I know: ${knownColor} ${knownRank} → ✅ SAFE TO PLAY (firework needs this!)`);
+      } else if (knownRank < needed) {
+        lines.push(`  [${idx}] I know: ${knownColor} ${knownRank} → Already played, safe to DISCARD`);
+      } else {
+        lines.push(`  [${idx}] I know: ${knownColor} ${knownRank} → Keep for later (not needed yet)`);
+      }
+    } else if (knownRank) {
+      lines.push(`  [${idx}] I know rank=${knownRank} but NOT color → DO NOT PLAY (risky)`);
+    } else if (knownColor) {
+      lines.push(`  [${idx}] I know color=${knownColor} but NOT rank → DO NOT PLAY (risky)`);
+    } else {
+      lines.push(`  [${idx}] No clues at all → DO NOT PLAY, safe to DISCARD`);
     }
   }
-  // Subtract fireworks (played cards)
-  for (const color of COLORS) {
-    for (let r = 1; r <= view.fireworks[color]; r++) {
-      const key = `${color[0].toUpperCase()}${r}`;
-      remaining.set(key, (remaining.get(key) ?? 1) - 1);
-    }
-  }
-  // Subtract discard pile
-  for (const card of view.discardPile) {
-    const key = formatCard(card);
-    remaining.set(key, (remaining.get(key) ?? 1) - 1);
-  }
-  // Remove zero entries
-  for (const [k, v] of remaining) {
-    if (v <= 0) remaining.delete(k);
-  }
-  return remaining;
+  return lines.join('\n');
 }
 
-function formatCriticalCards(view: PlayerView): string {
-  const remaining = getRemainingCards(view);
-  const critical: string[] = [];
-  for (const color of COLORS) {
-    const nextRank = view.fireworks[color] + 1;
-    if (nextRank > 5) continue;
-    const key = `${color[0].toUpperCase()}${nextRank}`;
-    const count = remaining.get(key) ?? 0;
-    if (count === 1) critical.push(`${key} (last copy!)`);
-    else if (count === 0) critical.push(`${key} (impossible — all discarded)`);
+function analyzeTeammates(view: PlayerView, playerNames?: string[]): string {
+  const name = (i: number) => playerNames?.[i] ?? `Player ${i}`;
+  const lines: string[] = [];
+
+  for (let i = 0; i < view.hands.length; i++) {
+    if (i === view.myIndex) continue;
+    const hand = view.hands[i];
+
+    for (let idx = 0; idx < hand.cards.length; idx++) {
+      const card = hand.cards[idx];
+      if (card.color && card.rank && view.fireworks[card.color] + 1 === card.rank) {
+        const knowsColor = card.clues.some(c => c.type === 'color' && c.value === card.color);
+        const knowsRank = card.clues.some(c => c.type === 'rank' && c.value === card.rank);
+        if (!knowsRank) {
+          lines.push(`  ${name(i)} has ${card.color} ${card.rank} at [${idx}] — PLAYABLE! Hint rank=${card.rank} to help them.`);
+        } else if (!knowsColor) {
+          lines.push(`  ${name(i)} has ${card.color} ${card.rank} at [${idx}] — PLAYABLE! Hint color=${card.color} to help them.`);
+        } else {
+          lines.push(`  ${name(i)} has ${card.color} ${card.rank} at [${idx}] — PLAYABLE and they know it (both clues given).`);
+        }
+      }
+    }
   }
-  if (critical.length === 0) return 'None currently critical.';
-  return critical.join(', ');
+
+  if (lines.length === 0) lines.push('  No teammates have immediately playable cards right now.');
+  return lines.join('\n');
+}
+
+function getRecommendation(view: PlayerView): string {
+  const myHand = view.hands[view.myIndex];
+  const pi = view.myIndex;
+
+  // 1. Known playable card?
+  for (let idx = 0; idx < myHand.cards.length; idx++) {
+    const clues = myHand.cards[idx].clues;
+    const knownColor = clues.find(c => c.type === 'color')?.value as Color | undefined;
+    const knownRank = clues.find(c => c.type === 'rank')?.value as number | undefined;
+    if (knownColor && knownRank && view.fireworks[knownColor] + 1 === knownRank) {
+      return `Play card [${idx}] — you KNOW it's ${knownColor} ${knownRank} and the firework needs it.\nJSON: {"type":"play","playerIndex":${pi},"cardIndex":${idx}}`;
+    }
+  }
+
+  // 2. Hint a teammate's playable card
+  if (view.clueTokens.current > 0) {
+    for (let i = 0; i < view.hands.length; i++) {
+      if (i === pi) continue;
+      for (const card of view.hands[i].cards) {
+        if (card.color && card.rank && view.fireworks[card.color] + 1 === card.rank) {
+          const knowsRank = card.clues.some(c => c.type === 'rank' && c.value === card.rank);
+          if (!knowsRank) {
+            return `Hint Player ${i} about rank=${card.rank} — they have a playable ${card.color} ${card.rank}.\nJSON: {"type":"hint","playerIndex":${pi},"targetIndex":${i},"hint":{"type":"rank","value":${card.rank}}}`;
+          }
+          const knowsColor = card.clues.some(c => c.type === 'color' && c.value === card.color);
+          if (!knowsColor) {
+            return `Hint Player ${i} about color=${card.color} — they have a playable ${card.color} ${card.rank}.\nJSON: {"type":"hint","playerIndex":${pi},"targetIndex":${i},"hint":{"type":"color","value":"${card.color}"}}`;
+          }
+        }
+      }
+    }
+    // Give any useful hint
+    const hints = view.legalActions.filter(a => a.type === 'hint');
+    if (hints.length > 0) {
+      const h = hints[0] as { type: 'hint'; playerIndex: number; targetIndex: number; hint: { type: string; value: unknown } };
+      return `Give a useful hint to a teammate.\nJSON: ${JSON.stringify(h)}`;
+    }
+  }
+
+  // 3. Discard safest card
+  let bestIdx = myHand.cards.length - 1;
+  for (let idx = myHand.cards.length - 1; idx >= 0; idx--) {
+    if (myHand.cards[idx].clues.length === 0) { bestIdx = idx; break; }
+  }
+  return `Discard card [${bestIdx}] (no clues = safest to lose).\nJSON: {"type":"discard","playerIndex":${pi},"cardIndex":${bestIdx}}`;
 }
 
 // ─── Main Builder ───
 
 export interface AIContextOptions {
-  /** Player names for readability */
   playerNames?: string[];
-  /** Include full game rules (default: true on first call) */
   includeRules?: boolean;
-  /** Max recent actions to show (default: 10) */
   recentActionsLimit?: number;
 }
 
-/**
- * Build a complete AI context string from a PlayerView.
- * This is the primary function LLM agents should consume.
- */
 export function buildAIContext(view: PlayerView, options: AIContextOptions = {}): string {
-  const {
-    playerNames,
-    includeRules = true,
-    recentActionsLimit = 10,
-  } = options;
-
+  const { playerNames, includeRules = true, recentActionsLimit = 10 } = options;
   const name = (i: number) => playerNames?.[i] ?? `Player ${i}`;
   const sections: string[] = [];
 
-  // 1. Rules (optional)
+  // 1. Rules + action definitions + examples
   if (includeRules) {
     sections.push(GAME_RULES);
   }
 
-  // 2. Game overview
+  // 2. Game state overview
+  const score = Object.values(view.fireworks).reduce((a, b) => a + b, 0);
   sections.push(`# Current Game State
+You are ${name(view.myIndex)} (playerIndex=${view.myIndex}).
+It is YOUR turn. You must choose ONE action.
 
-You are **${name(view.myIndex)}** (Player ${view.myIndex}).
-Turn: ${view.turn} | Current player: ${name(view.currentPlayer)} (Player ${view.currentPlayer})
-Status: ${view.status}${view.turnsLeft !== null ? ` | Final countdown: ${view.turnsLeft} turns remaining` : ''}
-Score: ${Object.values(view.fireworks).reduce((a, b) => a + b, 0)}/${MAX_SCORE}
-Clue tokens: ${view.clueTokens.current}/${view.clueTokens.max}
-Strikes: ${view.strikes.current}/${view.strikes.max}
-Deck: ${view.deckSize} cards remaining`);
+Score: ${score}/${MAX_SCORE} | Clue tokens: ${view.clueTokens.current}/${view.clueTokens.max} | Strikes: ${view.strikes.current}/${view.strikes.max} | Deck: ${view.deckSize} cards left${view.turnsLeft !== null ? ` | FINAL ROUND: ${view.turnsLeft} turns left!` : ''}`);
 
-  // 3. Fireworks
-  sections.push(`## Fireworks (Current Piles)
-${formatFireworks(view.fireworks)}
-Next needed: ${COLORS.map((c) => {
-    const next = view.fireworks[c] + 1;
-    return next <= 5 ? `${c}→${next}` : `${c}→done`;
-  }).join(', ')}`);
+  // 3. Fireworks - what each pile needs
+  sections.push(`## Firework Piles (goal: build each to 5)\n${formatFireworks(view.fireworks)}`);
 
-  // 4. Hands
-  const handLines: string[] = ['## Hands'];
+  // 4. All hands
+  const handLines: string[] = [];
   for (let i = 0; i < view.hands.length; i++) {
     const hand = view.hands[i];
     if (i === view.myIndex) {
-      handLines.push(`\n### ${name(i)} (YOU) — You cannot see your own cards`);
+      handLines.push(`\n### YOUR hand (you CANNOT see these — only clues shown):`);
       hand.cards.forEach((card, idx) => {
-        handLines.push(`  [${idx}] ?? (${formatClues(card.clues)})`);
+        handLines.push(`  [${idx}] ?? — ${formatClues(card.clues)}`);
       });
     } else {
-      handLines.push(`\n### ${name(i)}`);
+      handLines.push(`\n### ${name(i)}'s hand (you CAN see these):`);
       hand.cards.forEach((card, idx) => {
-        handLines.push(`  [${idx}] ${formatCard(card)} (${formatClues(card.clues)})`);
+        const playable = card.color && card.rank && view.fireworks[card.color] + 1 === card.rank;
+        handLines.push(`  [${idx}] ${formatCard(card)}${playable ? ' ← PLAYABLE NOW!' : ''} — ${formatClues(card.clues)}`);
       });
     }
   }
-  sections.push(handLines.join('\n'));
+  sections.push(`## Hands${handLines.join('\n')}`);
 
-  // 5. Discard pile
-  sections.push(`## Discard Pile
-${formatDiscardPile(view.discardPile)}`);
+  // 5. Your hand analysis
+  sections.push(`## What you know about YOUR cards (deduced from clues)\n${analyzeOwnHand(view)}`);
 
-  // 6. Critical cards
-  sections.push(`## Critical Cards (only 1 copy left or blocked)
-${formatCriticalCards(view)}`);
+  // 6. Teammate playable analysis
+  sections.push(`## Teammates' playable cards (you can see these!)\n${analyzeTeammates(view, playerNames)}`);
 
-  // 7. Recent action history
+  // 7. Discard pile
+  sections.push(`## Discard pile: ${formatDiscardPile(view.discardPile)}`);
+
+  // 8. Recent history
   const recent = view.actionHistory.slice(-recentActionsLimit);
   if (recent.length > 0) {
-    const historyLines = recent.map(
-      (a, i) => `  ${view.actionHistory.length - recent.length + i + 1}. ${formatAction(a, playerNames)}`,
-    );
-    sections.push(`## Recent Actions (last ${recent.length})
-${historyLines.join('\n')}`);
-  } else {
-    sections.push('## Recent Actions\nNo actions yet (game just started).');
+    sections.push(`## Recent actions\n${recent.map(
+      (a, i) => `  ${view.actionHistory.length - recent.length + i + 1}. ${formatAction(a, playerNames)}`
+    ).join('\n')}`);
   }
 
-  // 8. Legal actions
+  // 9. RECOMMENDED action with full JSON
   if (view.legalActions.length > 0) {
-    sections.push(`## Your Legal Actions
-You MUST choose exactly one action. Respond with the JSON object.
-
-${view.legalActions.map((a, i) => `${i + 1}. ${formatLegalAction(a)}
-   → ${JSON.stringify(a)}`).join('\n')}`);
-  } else if (view.status === 'playing') {
-    sections.push("## Not your turn\nWait for your turn to act.");
+    sections.push(`## RECOMMENDED ACTION\n${getRecommendation(view)}`);
   }
 
-  // 9. Response format
+  // 10. Available actions (filtered — no blind plays)
   if (view.legalActions.length > 0) {
-    sections.push(`## Response Format
-Reply with ONLY a JSON object matching one of the legal actions above. Example:
-\`\`\`json
-{"type":"play","playerIndex":${view.myIndex},"cardIndex":0}
-\`\`\`
+    const myHand = view.hands[view.myIndex];
+    const safePlays = view.legalActions.filter(a => {
+      if (a.type !== 'play') return false;
+      const clues = myHand.cards[a.cardIndex]?.clues ?? [];
+      const knownColor = clues.find(c => c.type === 'color')?.value as Color | undefined;
+      const knownRank = clues.find(c => c.type === 'rank')?.value as number | undefined;
+      return !!(knownColor && knownRank && view.fireworks[knownColor] + 1 === knownRank);
+    });
+    const hints = view.legalActions.filter(a => a.type === 'hint');
+    const discards = view.legalActions.filter(a => a.type === 'discard');
+    const actions = [...safePlays, ...hints, ...discards];
+    const finalActions = actions.length > 0 ? actions : view.legalActions;
 
-Think step by step about:
-1. What do I know about my cards from clues and game history?
-2. What cards do other players have? Are any critical or playable?
-3. Should I play (if confident), hint (to help a teammate), or discard (to gain clues)?
-4. Which specific action maximizes our cooperative score?`);
+    sections.push(`## Available actions (choose ONE — copy the JSON exactly)\n${finalActions.map((a, i) => `${i + 1}. ${JSON.stringify(a)}`).join('\n')}`);
   }
+
+  sections.push(`Reply with ONLY one JSON object from the list above. No explanation needed.`);
 
   return sections.join('\n\n');
 }
 
-/**
- * Compact version for subsequent turns (no rules, fewer actions).
- */
 export function buildAIContextCompact(view: PlayerView, options: AIContextOptions = {}): string {
   return buildAIContext(view, { ...options, includeRules: false, recentActionsLimit: 5 });
 }

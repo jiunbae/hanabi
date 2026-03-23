@@ -35,12 +35,23 @@ export const useGameStore = create<GameStore>((set) => ({
   aiPlayers: [],
   adminKey: null,
 
-  setScreen: (screen) => set({ screen }),
-  setGame: (gameId, apiKey, playerIndex) => set({ gameId, apiKey, playerIndex, screen: 'game' }),
+  setScreen: (screen) => {
+    set({ screen });
+    if (screen === 'lobby') history.pushState(null, '', '/');
+    else if (screen === 'admin') history.pushState(null, '', '/admin');
+    else if (screen === 'tutorial') history.pushState(null, '', '/tutorial');
+  },
+  setGame: (gameId, apiKey, playerIndex) => {
+    set({ gameId, apiKey, playerIndex, screen: 'game' });
+    history.pushState(null, '', `/game/${gameId}`);
+  },
   setView: (view) => set({ view }),
   setPlayerName: (name) => set({ playerName: name }),
   setError: (error) => set({ error }),
   setAIPlayers: (aiPlayers) => set({ aiPlayers }),
   setAdminKey: (adminKey) => set({ adminKey }),
-  reset: () => set({ screen: 'lobby', gameId: null, apiKey: null, playerIndex: -1, view: null, error: null, aiPlayers: [] }),
+  reset: () => {
+    set({ screen: 'lobby', gameId: null, apiKey: null, playerIndex: -1, view: null, error: null, aiPlayers: [] });
+    history.pushState(null, '', '/');
+  },
 }));

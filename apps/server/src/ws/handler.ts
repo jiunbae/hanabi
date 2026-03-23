@@ -30,6 +30,21 @@ export function setupWebSocket(server: Server): WebSocketServer {
     broadcastToGame(gameId, null, state);
   });
 
+  // When an action is submitted (including AI bot turns), broadcast state to all players
+  gameManager.onGameAction((gameId, state) => {
+    broadcastToGame(gameId, null, state);
+
+    if (state.status === 'finished') {
+      const score = getScore(state.fireworks);
+      broadcastToAll(gameId, (_ws, playerIdx) => ({
+        type: 'GAME_ENDED',
+        gameId,
+        score,
+        view: getPlayerView(state, playerIdx),
+      }));
+    }
+  });
+
   wss.on('connection', (ws: WebSocket) => {
     if (clients.size >= MAX_CONNECTIONS) {
       ws.close(1013, 'Server too busy');
@@ -104,7 +119,10 @@ function handleMessage(client: ConnectedClient, msg: ClientMessage): void {
         return;
       }
       try {
-        const { view, finished } = gameManager.submitAction(msg.gameId, client.apiKey, msg.action);
+        // submitAction fires onActionCallbacks which handles broadcasting
+        // to all players (including this one) via the onGameAction handler above.
+        // We only need to send the ACTION_RESULT to the sender here.
+        const { view } = gameManager.submitAction(msg.gameId, client.apiKey, msg.action);
 
         sendMessage(client.ws, {
           type: 'ACTION_RESULT',
@@ -112,21 +130,6 @@ function handleMessage(client: ConnectedClient, msg: ClientMessage): void {
           success: true,
           view,
         });
-
-        const state = gameManager.getRoomState(msg.gameId);
-        if (state) {
-          broadcastToGame(msg.gameId, client.ws, state);
-        }
-
-        if (finished && state) {
-          const score = getScore(state.fireworks);
-          broadcastToAll(msg.gameId, (_ws, playerIdx) => ({
-            type: 'GAME_ENDED',
-            gameId: msg.gameId,
-            score,
-            view: getPlayerView(state, playerIdx),
-          }));
-        }
       } catch (e) {
         sendMessage(client.ws, {
           type: 'ERROR',

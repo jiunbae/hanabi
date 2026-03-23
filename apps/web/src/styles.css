@@ -1652,3 +1652,78 @@ select.input {
     align-items: stretch;
   }
 }
+
+/* ── Leaderboard ── */
+
+.leaderboard-section {
+  max-width: 480px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+.leaderboard-title {
+  font-size: 16px;
+  color: #f1c40f;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  font-size: 13px;
+}
+.leaderboard-top {
+  background: rgba(241,196,15,0.06);
+  border-color: rgba(241,196,15,0.15);
+}
+.leaderboard-rank {
+  min-width: 28px;
+  text-align: center;
+  font-weight: 700;
+}
+.leaderboard-name {
+  flex: 1;
+  color: #eee;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaderboard-score {
+  font-weight: 700;
+  color: #f1c40f;
+  min-width: 45px;
+  text-align: right;
+}
+.leaderboard-players {
+  color: #667;
+  font-size: 11px;
+  min-width: 24px;
+}
+
+/* ── Ad Slots ── */
+
+.ad-slot {
+  max-width: 480px;
+  margin: 16px auto;
+  text-align: center;
+  min-height: 50px;
+}
+.ad-slot-game {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  background: rgba(15,14,23,0.95);
+  padding: 4px 0;
+  z-index: 10;
+}

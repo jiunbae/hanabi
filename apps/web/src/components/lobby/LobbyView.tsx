@@ -7,6 +7,8 @@ import { FeatureHighlights } from './FeatureHighlights.js';
 import { GameActions } from './GameActions.js';
 import { ActiveGames } from './ActiveGames.js';
 import { LobbyFooter } from './LobbyFooter.js';
+import { Leaderboard } from './Leaderboard.js';
+import { AdSlot } from '../AdSlot.js';
 
 export function LobbyView() {
   const { playerName, setPlayerName, setGame, setError, setScreen } = useGameStore();
@@ -80,6 +82,10 @@ export function LobbyView() {
         totalGames={games.length}
         onJoin={handleJoin}
       />
+
+      <Leaderboard />
+
+      <AdSlot slot="7610792747" />
 
       <LobbyFooter />
     </div>

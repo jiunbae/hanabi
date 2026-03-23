@@ -6,6 +6,7 @@ export const games = sqliteTable('games', {
   status: text('status', { enum: ['waiting', 'playing', 'finished'] }).notNull().default('waiting'),
   seed: integer('seed').notNull(),
   score: integer('score'),
+  gameName: text('game_name'),
   createdAt: text('created_at').notNull(),
   finishedAt: text('finished_at'),
 });

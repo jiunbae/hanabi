@@ -8,6 +8,10 @@ services:
       - NODE_ENV=production
       - PORT=3001
       - ALLOWED_ORIGINS=https://hanabi.jiun.dev,http://localhost:3001
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AI_PROVIDER=gemini
+      - AI_MODEL=${AI_MODEL}
+      - ADMIN_KEY=${ADMIN_KEY}
     restart: unless-stopped
 
   tunnel:

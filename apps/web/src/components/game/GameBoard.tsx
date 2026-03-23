@@ -10,6 +10,7 @@ import { HandView, HINT_PANEL_HEIGHT, ACTION_POPUP_HEIGHT } from './HandView.js'
 import { CARD_HEIGHT } from './CardView.js';
 import { FireworksView } from './FireworksView.js';
 import { DeckView } from './DeckView.js';
+import { AdSlot } from '../AdSlot.js';
 import { InfoPanel } from './InfoPanel.js';
 import { DiscardPileView } from './DiscardPileView.js';
 import { ActionLog } from './ActionLog.js';
@@ -65,6 +66,56 @@ function ConfettiEffect() {
     );
   });
   return <div className="confetti-container">{particles}</div>;
+}
+
+function GameOverScreen({ score, scoreRating, fireworks, gameId, apiKey, onBack }: {
+  score: number; scoreRating: string; fireworks: Record<Color, number>;
+  gameId: string | null; apiKey: string | null; onBack: () => void;
+}) {
+  const t = useT();
+  const [gameName, setGameName] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    if (!gameId || !apiKey || !gameName.trim()) return;
+    try {
+      await api.setGameName(gameId, apiKey, gameName.trim());
+      setSaved(true);
+    } catch {}
+  };
+
+  return (
+    <div className="game-over">
+      {score >= 20 && <ConfettiEffect />}
+      <div className="game-over-title">{t('game.gameOver')}</div>
+      <div className="game-over-score">{t('game.finalScore', { score })}</div>
+      <StarRating score={score} />
+      <ScoreBreakdown fireworks={fireworks} />
+      <div className="game-over-rating">{scoreRating}</div>
+      {!saved ? (
+        <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <input
+            className="input"
+            type="text"
+            placeholder={t('game.nameYourGame')}
+            value={gameName}
+            onChange={(e) => setGameName(e.target.value)}
+            maxLength={32}
+            style={{ width: 180, textAlign: 'center' }}
+          />
+          <button className="btn btn-dark" onClick={handleSave} disabled={!gameName.trim()}>
+            {t('game.saveRecord')}
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 12, color: '#2ecc71', fontSize: 13 }}>{t('game.recordSaved')}</div>
+      )}
+      <AdSlot slot="7185751910" />
+      <button className="btn btn-primary btn-lg" style={{ marginTop: 16 }} onClick={onBack}>
+        {t('game.backToLobby')}
+      </button>
+    </div>
+  );
 }
 
 function ScoreBreakdown({ fireworks }: { fireworks: Record<Color, number> }) {
@@ -368,17 +419,19 @@ export function GameBoard() {
       <ActionLog actions={view.actionHistory} myIndex={view.myIndex} />
 
       {view.status === 'finished' && (
-        <div className="game-over">
-          {score >= 20 && <ConfettiEffect />}
-          <div className="game-over-title">{t('game.gameOver')}</div>
-          <div className="game-over-score">{t('game.finalScore', { score })}</div>
-          <StarRating score={score} />
-          <ScoreBreakdown fireworks={view.fireworks} />
-          <div className="game-over-rating">{scoreRating}</div>
-          <button className="btn btn-primary btn-lg" style={{ marginTop: 20 }} onClick={reset}>
-            {t('game.backToLobby')}
-          </button>
-        </div>
+        <GameOverScreen
+          score={score}
+          scoreRating={scoreRating}
+          fireworks={view.fireworks}
+          gameId={gameId}
+          apiKey={apiKey}
+          onBack={reset}
+        />
+      )}
+
+      {/* Fixed bottom ad — small, non-intrusive */}
+      {view.status === 'playing' && (
+        <AdSlot slot="1841925895" format="fixed" width={320} height={50} className="ad-slot-game" />
       )}
     </div>
   );

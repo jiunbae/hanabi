@@ -15,6 +15,7 @@ await client.executeMultiple(`
     status TEXT NOT NULL DEFAULT 'waiting',
     seed INTEGER NOT NULL,
     score INTEGER,
+    game_name TEXT,
     created_at TEXT NOT NULL,
     finished_at TEXT
   );
@@ -35,5 +36,12 @@ await client.executeMultiple(`
     timestamp TEXT NOT NULL
   );
 `);
+
+// Safe migration: add game_name column to existing DBs
+try {
+  await client.execute('ALTER TABLE games ADD COLUMN game_name TEXT');
+} catch {
+  // Column already exists — ignore
+}
 
 export { schema };

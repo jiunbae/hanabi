@@ -164,6 +164,24 @@ games.get('/:id/ai-context', async (c) => {
   });
 });
 
+// Set game name (after game finishes, for leaderboard)
+games.post('/:id/name', async (c) => {
+  const gameId = c.req.param('id');
+  const apiKey = c.req.header('x-api-key');
+  if (!apiKey) {
+    throw new HanabiError('Missing x-api-key header', ErrorCodes.UNAUTHORIZED, 401);
+  }
+  gameManager.getPlayerIndexByApiKey(gameId, apiKey); // validates access
+  const body = await c.req.json().catch(() => null);
+  if (!body || typeof (body as { name?: unknown }).name !== 'string') {
+    throw new HanabiError('name is required', ErrorCodes.INVALID_REQUEST);
+  }
+  const gameName = ((body as { name: string }).name).trim().slice(0, 32);
+  if (!gameName) throw new HanabiError('name cannot be empty', ErrorCodes.INVALID_REQUEST);
+  gameManager.setGameName(gameId, gameName);
+  return c.json({ success: true, gameName });
+});
+
 // Get replay (authenticated)
 games.get('/:id/replay', (c) => {
   const gameId = c.req.param('id');

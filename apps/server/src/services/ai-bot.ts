@@ -7,10 +7,37 @@
 import { buildAIContext, buildAIContextCompact, getPlayerView } from '@hanabi/engine';
 import type { GameAction, PlayerView } from '@hanabi/engine';
 import { gameManager } from './game-manager.js';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 const AI_TURN_DELAY_MS = 1500;
 const MAX_RETRIES = 3;
 const MAX_CONSECUTIVE_AI_TURNS = 50; // Circuit breaker for all-AI games
+
+// ─── Load prompt config ───
+
+interface AIPromptConfig {
+  system: Record<string, string>;
+  temperature: number;
+  maxTokens: number;
+}
+
+function loadPromptConfig(): AIPromptConfig {
+  try {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const configPath = join(__dirname, '..', 'config', 'ai-prompts.json');
+    return JSON.parse(readFileSync(configPath, 'utf-8'));
+  } catch {
+    return {
+      system: { default: 'You play Hanabi cooperatively. Follow the RECOMMENDED ACTION. Respond with ONLY a valid JSON action object.' },
+      temperature: 0.2,
+      maxTokens: 256,
+    };
+  }
+}
+
+const promptConfig = loadPromptConfig();
 
 // ─── LLM Provider Interface ───
 
@@ -40,8 +67,8 @@ class ClaudeProvider implements LLMProvider {
     const client = this.client as import('@anthropic-ai/sdk').default;
     const response = await client.messages.create({
       model: this.model,
-      max_tokens: 1024,
-      system: 'You are an expert Hanabi player. Analyze the game state carefully and choose the optimal cooperative action. Respond with ONLY a valid JSON action object, no other text.',
+      max_tokens: promptConfig.maxTokens,
+      system: promptConfig.system.default,
       messages: [{ role: 'user', content: prompt }],
     });
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
@@ -74,9 +101,9 @@ class OpenAIProvider implements LLMProvider {
     const client = this.client as import('openai').default;
     const response = await client.chat.completions.create({
       model: this.model,
-      max_tokens: 1024,
+      max_tokens: promptConfig.maxTokens,
       messages: [
-        { role: 'system', content: 'You are an expert Hanabi player. Analyze the game state carefully and choose the optimal cooperative action. Respond with ONLY a valid JSON action object, no other text.' },
+        { role: 'system', content: promptConfig.system.default },
         { role: 'user', content: prompt },
       ],
     });
@@ -103,16 +130,26 @@ class GeminiProvider implements LLMProvider {
   }
 }
 
+function extractJSON(text: string): string {
+  // Find the first balanced { ... } block, supporting nested objects
+  const start = text.indexOf('{');
+  if (start === -1) throw new Error(`No JSON found in LLM response: ${text.slice(0, 200)}`);
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') depth--;
+    if (depth === 0) return text.slice(start, i + 1);
+  }
+  throw new Error(`Unbalanced JSON in LLM response: ${text.slice(0, 200)}`);
+}
+
 function parseActionFromLLM(text: string): GameAction {
   let cleaned = text.trim();
   const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch) cleaned = codeBlockMatch[1].trim();
 
-  // Non-greedy match to avoid capturing beyond the first JSON object
-  const jsonMatch = cleaned.match(/\{[\s\S]*?\}/);
-  if (!jsonMatch) throw new Error(`No JSON found in LLM response: ${text.slice(0, 200)}`);
-
-  const raw = JSON.parse(jsonMatch[0]);
+  const jsonStr = extractJSON(cleaned);
+  const raw = JSON.parse(jsonStr);
   if (!raw.type || !['play', 'discard', 'hint'].includes(raw.type)) {
     throw new Error(`Invalid action type: ${raw.type}`);
   }
@@ -148,9 +185,8 @@ class AIBotService {
   private provider: LLMProvider | null = null;
   private providerName: string;
   private modelName: string;
-  private turnInProgress = new Set<string>(); // gameId keys to prevent duplicate triggers
+  private activeTurns = new Set<string>(); // games with an AI turn currently executing
   private consecutiveTurns = new Map<string, number>(); // circuit breaker per game
-  private cancelledGames = new Set<string>(); // games that should stop AI turns
 
   constructor() {
     this.providerName = process.env.AI_PROVIDER ?? 'claude';
@@ -197,7 +233,7 @@ class AIBotService {
 
     gameManager.onGameStarted((gameId, state) => {
       this.consecutiveTurns.set(gameId, 0);
-      this.maybePlayTurn(gameId, state.currentPlayer);
+      this.scheduleAITurn(gameId, state.currentPlayer);
     });
 
     gameManager.onGameAction((gameId, state) => {
@@ -206,12 +242,16 @@ class AIBotService {
         return;
       }
 
-      // Track consecutive AI turns; reset when human plays
+      // If an AI turn chain is already running for this game, skip —
+      // the chain handles its own scheduling in scheduleAITurn.
+      if (this.activeTurns.has(gameId)) return;
+
+      // Reset consecutive counter when a human plays
       if (!this.isAIPlayer(gameId, state.currentPlayer)) {
         this.consecutiveTurns.set(gameId, 0);
       }
 
-      this.maybePlayTurn(gameId, state.currentPlayer);
+      this.scheduleAITurn(gameId, state.currentPlayer);
     });
   }
 
@@ -263,19 +303,18 @@ class AIBotService {
   /** Clean up AI state for a game. Called on eviction and game finish. */
   removeGame(gameId: string): void {
     this.aiPlayers.delete(gameId);
-    this.turnInProgress.delete(gameId);
+    this.activeTurns.delete(gameId);
     this.consecutiveTurns.delete(gameId);
-    this.cancelledGames.add(gameId); // cancel any in-flight setTimeout
-    // Allow GC of cancelled set entry after delay
-    setTimeout(() => this.cancelledGames.delete(gameId), AI_TURN_DELAY_MS * 2);
   }
 
-  private maybePlayTurn(gameId: string, playerIndex: number): void {
+  /**
+   * Schedule an AI turn. After completing, checks if the NEXT player is also AI
+   * and chains directly — does NOT rely on onActionCallbacks for AI→AI chaining.
+   */
+  private scheduleAITurn(gameId: string, playerIndex: number): void {
     if (!this.isAIPlayer(gameId, playerIndex)) return;
-    if (this.turnInProgress.has(gameId)) return;
-    if (this.cancelledGames.has(gameId)) return;
+    if (this.activeTurns.has(gameId)) return; // prevent double-scheduling
 
-    // Circuit breaker: stop after too many consecutive AI turns
     const consecutive = (this.consecutiveTurns.get(gameId) ?? 0) + 1;
     if (consecutive > MAX_CONSECUTIVE_AI_TURNS) {
       console.warn(`AI Bot circuit breaker: ${consecutive} consecutive turns in game ${gameId}, stopping`);
@@ -283,71 +322,157 @@ class AIBotService {
     }
     this.consecutiveTurns.set(gameId, consecutive);
 
-    this.turnInProgress.add(gameId);
-    setTimeout(() => {
-      if (this.cancelledGames.has(gameId)) {
-        this.turnInProgress.delete(gameId);
-        return;
-      }
-      this.playTurn(gameId, playerIndex).catch((err) => {
+    this.activeTurns.add(gameId);
+    setTimeout(async () => {
+      try {
+        if (!this.aiPlayers.has(gameId)) return; // game removed
+
+        await this.playTurn(gameId, playerIndex);
+
+        // After this AI played, check if the next current player is ALSO AI.
+        // This drives the AI→AI chain without relying on callbacks.
+        try {
+          const state = gameManager.getRoomState(gameId);
+          if (state && state.status === 'playing') {
+            const nextPlayer = state.currentPlayer;
+            if (this.isAIPlayer(gameId, nextPlayer)) {
+              this.activeTurns.delete(gameId);
+              this.scheduleAITurn(gameId, nextPlayer);
+              return; // don't delete activeTurns below
+            }
+          }
+        } catch {
+          // game may have been evicted
+        }
+      } catch (err) {
         console.error(`AI Bot turn failed [game=${gameId}, player=${playerIndex}]:`, err);
-      }).finally(() => {
-        this.turnInProgress.delete(gameId);
-      });
+      } finally {
+        this.activeTurns.delete(gameId);
+      }
     }, AI_TURN_DELAY_MS);
+  }
+
+  /** Compute a smart default action without LLM — used as fallback */
+  private getSmartAction(view: PlayerView, playerIndex: number): GameAction {
+    const myHand = view.hands[playerIndex];
+
+    // 1. Play any card that we KNOW is playable (both color + rank clues)
+    for (let idx = 0; idx < myHand.cards.length; idx++) {
+      const clues = myHand.cards[idx].clues;
+      const knownColor = clues.find(c => c.type === 'color')?.value as string | undefined;
+      const knownRank = clues.find(c => c.type === 'rank')?.value as number | undefined;
+      if (knownColor && knownRank) {
+        const fw = view.fireworks as unknown as Record<string, number>;
+        if (fw[knownColor] + 1 === knownRank) {
+          return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
+        }
+      }
+    }
+
+    // 2. Give hint about a teammate's playable card
+    if (view.clueTokens.current > 0) {
+      for (let i = 0; i < view.hands.length; i++) {
+        if (i === playerIndex) continue;
+        for (const card of view.hands[i].cards) {
+          if (card.color && card.rank) {
+            const fw = view.fireworks as unknown as Record<string, number>;
+            if (fw[card.color] + 1 === card.rank) {
+              const knowsRank = card.clues.some(c => c.type === 'rank' && c.value === card.rank);
+              if (!knowsRank) {
+                return { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'rank', value: card.rank } } as GameAction;
+              }
+              const knowsColor = card.clues.some(c => c.type === 'color' && c.value === card.color);
+              if (!knowsColor) {
+                return { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'color', value: card.color } } as GameAction;
+              }
+            }
+          }
+        }
+      }
+      // No playable cards found — give any hint (pick first available)
+      const hints = view.legalActions.filter(a => a.type === 'hint');
+      if (hints.length > 0) return { ...hints[0] } as GameAction;
+    }
+
+    // 3. Discard card with fewest clues
+    const discards = view.legalActions.filter(a => a.type === 'discard');
+    if (discards.length > 0) {
+      // Find card with fewest clues
+      let bestIdx = 0;
+      let minClues = Infinity;
+      for (let idx = 0; idx < myHand.cards.length; idx++) {
+        if (myHand.cards[idx].clues.length < minClues) {
+          minClues = myHand.cards[idx].clues.length;
+          bestIdx = idx;
+        }
+      }
+      return { type: 'discard', playerIndex, cardIndex: bestIdx } as GameAction;
+    }
+
+    // 4. Absolute fallback
+    return { ...view.legalActions[0] } as GameAction;
+  }
+
+  /** Validate that the LLM's action is safe (not a blind play) */
+  private isSafeAction(action: GameAction, view: PlayerView, playerIndex: number): boolean {
+    if (action.type !== 'play') return true; // hints and discards are always "safe"
+
+    const cardClues = view.hands[playerIndex].cards[action.cardIndex]?.clues ?? [];
+    const knownColor = cardClues.find(c => c.type === 'color')?.value as string | undefined;
+    const knownRank = cardClues.find(c => c.type === 'rank')?.value as number | undefined;
+
+    if (!knownColor || !knownRank) return false; // blind play
+    const fw = view.fireworks as unknown as Record<string, number>;
+    return fw[knownColor] + 1 === knownRank;
   }
 
   private async playTurn(gameId: string, playerIndex: number): Promise<void> {
     if (!this.provider) return;
 
-    // Get the current view for this AI player
     let view: PlayerView;
     try {
       view = gameManager.getGameViewByIndex(gameId, playerIndex);
     } catch {
-      return; // Game may have ended or been evicted
+      return;
     }
 
     if (view.status !== 'playing' || view.currentPlayer !== playerIndex) return;
     if (view.legalActions.length === 0) return;
 
     const playerNames = gameManager.getPlayerNames(gameId);
-    const isFirstTurn = view.actionHistory.length < view.hands.length; // First round
+    const isFirstTurn = view.actionHistory.length < view.hands.length;
     const prompt = isFirstTurn
       ? buildAIContext(view, { playerNames })
       : buildAIContextCompact(view, { playerNames });
 
-    // Try LLM with retries, fallback to first legal action
-    let action: GameAction | null = null;
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        action = await this.provider.generateAction(prompt);
-        action = { ...action, playerIndex }; // Ensure correct playerIndex
-        break;
-      } catch (err) {
-        console.error(`AI Bot attempt ${attempt}/${MAX_RETRIES} failed:`, (err as Error).message);
-        if (attempt === MAX_RETRIES) {
-          action = { ...view.legalActions[0] };
-          console.log(`AI Bot fallback to first legal action: ${JSON.stringify(action)}`);
-        }
-      }
-    }
+    // Compute smart default action (rule-based — always safe)
+    const smartAction = this.getSmartAction(view, playerIndex);
 
-    if (!action) return;
+    // Try LLM to potentially improve on the smart action
+    let action: GameAction = smartAction;
+    try {
+      const llmAction = await this.provider.generateAction(prompt);
+      const sanitized = { ...llmAction, playerIndex };
+
+      // Only accept LLM's choice if it's safe (no blind plays)
+      if (this.isSafeAction(sanitized as GameAction, view, playerIndex)) {
+        action = sanitized as GameAction;
+      } else {
+        console.log(`AI Bot: LLM suggested unsafe play, using smart action`);
+      }
+    } catch (err) {
+      console.log(`AI Bot: LLM failed (${(err as Error).message.slice(0, 80)}), using smart action`);
+    }
 
     try {
       gameManager.submitActionInternal(gameId, playerIndex, action);
       console.log(`AI Bot [game=${gameId}, player=${playerIndex}]: ${action.type}`);
     } catch (err) {
-      // If the chosen action is invalid, try first legal action
       console.error(`AI Bot action rejected:`, (err as Error).message);
-      const fallback = view.legalActions[0];
-      if (fallback) {
-        try {
-          gameManager.submitActionInternal(gameId, playerIndex, { ...fallback });
-        } catch (e2) {
-          console.error(`AI Bot fallback also failed:`, (e2 as Error).message);
-        }
+      try {
+        gameManager.submitActionInternal(gameId, playerIndex, smartAction);
+      } catch (e2) {
+        console.error(`AI Bot smart action also failed:`, (e2 as Error).message);
       }
     }
   }

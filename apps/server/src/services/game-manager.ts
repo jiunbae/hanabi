@@ -8,7 +8,7 @@ import {
 import type { GameState, GameAction, GameOptions, PlayerView } from '@hanabi/engine';
 import { HanabiError, ErrorCodes } from '@hanabi/shared';
 import { db, schema } from '../db/index.js';
-import { eq, and, lt, inArray } from 'drizzle-orm';
+import { eq, and, lt, inArray, desc, isNotNull } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 interface GameRoom {
@@ -185,6 +185,46 @@ class GameManager {
     const room = this.getRoom(gameId);
     if (!room.state) throw new HanabiError('Game not started', ErrorCodes.GAME_NOT_STARTED);
     return getPlayerView(room.state, playerIndex);
+  }
+
+  setGameName(gameId: string, gameName: string): void {
+    const room = this.getRoom(gameId);
+    if (!room.state || room.state.status !== 'finished') {
+      throw new HanabiError('Can only name finished games', ErrorCodes.INVALID_REQUEST);
+    }
+    db.update(schema.games).set({ gameName }).where(eq(schema.games.id, gameId))
+      .catch((e) => console.error('DB update gameName failed:', e));
+  }
+
+  async getLeaderboard(limit: number): Promise<{ gameId: string; gameName: string | null; score: number; players: string[]; numPlayers: number; finishedAt: string }[]> {
+    const rows = await db.select({
+      id: schema.games.id,
+      gameName: schema.games.gameName,
+      score: schema.games.score,
+      numPlayers: schema.games.options,
+      finishedAt: schema.games.finishedAt,
+    }).from(schema.games)
+      .where(and(eq(schema.games.status, 'finished'), isNotNull(schema.games.score)))
+      .orderBy(desc(schema.games.score))
+      .limit(limit);
+
+    // Fetch player names for each game
+    const results = [];
+    for (const row of rows) {
+      const playerRows = await db.select({ name: schema.players.name })
+        .from(schema.players)
+        .where(eq(schema.players.gameId, row.id));
+      const opts = JSON.parse(row.numPlayers || '{}');
+      results.push({
+        gameId: row.id,
+        gameName: row.gameName,
+        score: row.score ?? 0,
+        players: playerRows.map(p => p.name),
+        numPlayers: opts.numPlayers ?? playerRows.length,
+        finishedAt: row.finishedAt ?? '',
+      });
+    }
+    return results;
   }
 
   getReplay(gameId: string, apiKey: string): { options: Omit<GameOptions, 'seed'>; actions: GameAction[]; score: number } {
