@@ -18,6 +18,24 @@ const translations = {
     'lobby.playersCount': '{current}/{max} players',
     'lobby.nameRequired': 'Please enter your name first',
     'lobby.tutorial': 'How to Play',
+    'lobby.or': 'or',
+    'lobby.joinById': 'Join a game by ID',
+    'lobby.gamesActive': '{n} games active now',
+
+    // Hero
+    'hero.tagline': 'The cooperative card game where you play blind',
+    'hero.createGame': 'Start Playing',
+
+    // Features
+    'feature.coop.title': 'Cooperative',
+    'feature.coop.desc': 'Work together — you win or lose as a team',
+    'feature.hidden.title': 'Hidden Information',
+    'feature.hidden.desc': 'You can see everyone\'s cards except your own',
+    'feature.players.title': '2-5 Players',
+    'feature.players.desc': 'Quick rounds, perfect for friends online',
+
+    // Footer
+    'footer.builtFor': 'Built for fun with friends',
 
     // Waiting Room
     'waiting.title': 'Waiting Room',
@@ -106,6 +124,24 @@ const translations = {
     'lobby.playersCount': '{current}/{max}명',
     'lobby.nameRequired': '이름을 먼저 입력해주세요',
     'lobby.tutorial': '게임 방법',
+    'lobby.or': '또는',
+    'lobby.joinById': '게임 ID로 참가하기',
+    'lobby.gamesActive': '현재 {n}개 게임 진행 중',
+
+    // 히어로
+    'hero.tagline': '보이지 않는 카드로 함께 플레이하는 협동 게임',
+    'hero.createGame': '게임 시작하기',
+
+    // 특징
+    'feature.coop.title': '협동 게임',
+    'feature.coop.desc': '함께 이기고, 함께 지는 팀 게임',
+    'feature.hidden.title': '숨겨진 정보',
+    'feature.hidden.desc': '내 카드만 볼 수 없는 독특한 규칙',
+    'feature.players.title': '2-5인',
+    'feature.players.desc': '빠른 라운드, 친구와 온라인으로',
+
+    // 푸터
+    'footer.builtFor': '친구와 함께 즐기기 위해 만들어졌습니다',
 
     // 대기실
     'waiting.title': '대기실',

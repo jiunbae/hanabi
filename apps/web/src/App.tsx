@@ -11,7 +11,8 @@ export function App() {
 
   return (
     <div>
-      <LanguageSwitcher />
+      {/* Show floating lang switcher only outside lobby (lobby has its own in footer) */}
+      {screen !== 'lobby' && <LanguageSwitcher />}
 
       {error && (
         <div className="error-banner" onClick={() => setError(null)}>
