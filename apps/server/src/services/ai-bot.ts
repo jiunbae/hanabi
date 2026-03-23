@@ -4,7 +4,7 @@
  * Manages server-side AI players that use LLM APIs to play Nolbul.
  * Hooks into GameManager events to auto-play when it's an AI player's turn.
  */
-import { buildAIContext, buildAIContextCompact, getPlayerView } from '@nolbul/engine';
+import { buildAIContext, buildAIContextCompact, buildIntentInferencePrompt, buildAIContextWithInference, getPlayerView } from '@nolbul/engine';
 import type { GameAction, PlayerView } from '@nolbul/engine';
 import { gameManager } from './game-manager.js';
 import { readFileSync } from 'fs';
@@ -45,6 +45,7 @@ const promptConfig = loadPromptConfig();
 interface LLMProvider {
   name: string;
   generateAction(prompt: string): Promise<GameAction>;
+  generateText(prompt: string, systemPrompt?: string): Promise<string>;
 }
 
 // ─── Provider Implementations (lazy-loaded) ───
@@ -60,12 +61,16 @@ class ClaudeProvider implements LLMProvider {
     this.model = model ?? 'claude-sonnet-4-20250514';
   }
 
-  async generateAction(prompt: string): Promise<GameAction> {
+  private async getClient(): Promise<import('@anthropic-ai/sdk').default> {
     if (!this.client) {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
       this.client = new Anthropic({ apiKey: this.apiKey });
     }
-    const client = this.client as import('@anthropic-ai/sdk').default;
+    return this.client as import('@anthropic-ai/sdk').default;
+  }
+
+  async generateAction(prompt: string): Promise<GameAction> {
+    const client = await this.getClient();
     const response = await client.messages.create({
       model: this.model,
       max_tokens: promptConfig.maxTokens,
@@ -75,6 +80,17 @@ class ClaudeProvider implements LLMProvider {
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     return parseActionFromLLM(text);
   }
+
+  async generateText(prompt: string, systemPrompt?: string): Promise<string> {
+    const client = await this.getClient();
+    const response = await client.messages.create({
+      model: this.model,
+      max_tokens: 512,
+      system: systemPrompt ?? 'You are an expert Nolbul (Hanabi) player analyzing game state.',
+      messages: [{ role: 'user', content: prompt }],
+    });
+    return response.content[0].type === 'text' ? response.content[0].text : '';
+  }
 }
 
 class OpenAIProvider implements LLMProvider {
@@ -83,26 +99,42 @@ class OpenAIProvider implements LLMProvider {
   private model: string;
   private apiKey: string;
   private baseURL?: string;
+  private isAzure: boolean;
 
   constructor(apiKey: string, model?: string, baseURL?: string) {
     this.apiKey = apiKey;
     this.model = model ?? 'gpt-4o';
     this.baseURL = baseURL;
+    this.isAzure = !!baseURL?.includes('azure');
     this.name = `OpenAI (${this.model})`;
   }
 
-  async generateAction(prompt: string): Promise<GameAction> {
+  private async getClient(): Promise<import('openai').default> {
     if (!this.client) {
-      const { default: OpenAI } = await import('openai');
-      this.client = new OpenAI({
-        apiKey: this.apiKey,
-        ...(this.baseURL && { baseURL: this.baseURL }),
-      });
+      if (this.isAzure) {
+        const { AzureOpenAI } = await import('openai');
+        this.client = new AzureOpenAI({
+          apiKey: this.apiKey,
+          endpoint: this.baseURL!.replace(/\/openai\/deployments\/.*/, ''),
+          apiVersion: '2025-01-01-preview',
+          deployment: this.model,
+        });
+      } else {
+        const { default: OpenAI } = await import('openai');
+        this.client = new OpenAI({
+          apiKey: this.apiKey,
+          ...(this.baseURL && { baseURL: this.baseURL }),
+        });
+      }
     }
-    const client = this.client as import('openai').default;
+    return this.client as import('openai').default;
+  }
+
+  async generateAction(prompt: string): Promise<GameAction> {
+    const client = await this.getClient();
     const response = await client.chat.completions.create({
       model: this.model,
-      max_tokens: promptConfig.maxTokens,
+      max_completion_tokens: promptConfig.maxTokens,
       messages: [
         { role: 'system', content: promptConfig.system.default },
         { role: 'user', content: prompt },
@@ -110,6 +142,19 @@ class OpenAIProvider implements LLMProvider {
     });
     const text = response.choices[0]?.message?.content ?? '';
     return parseActionFromLLM(text);
+  }
+
+  async generateText(prompt: string, systemPrompt?: string): Promise<string> {
+    const client = await this.getClient();
+    const response = await client.chat.completions.create({
+      model: this.model,
+      max_completion_tokens: 512,
+      messages: [
+        { role: 'system', content: systemPrompt ?? 'You are an expert Nolbul (Hanabi) player analyzing game state.' },
+        { role: 'user', content: prompt },
+      ],
+    });
+    return response.choices[0]?.message?.content ?? '';
   }
 }
 
@@ -128,6 +173,10 @@ class GeminiProvider implements LLMProvider {
 
   async generateAction(prompt: string): Promise<GameAction> {
     return this.inner.generateAction(prompt);
+  }
+
+  async generateText(prompt: string, systemPrompt?: string): Promise<string> {
+    return this.inner.generateText(prompt, systemPrompt);
   }
 }
 
@@ -202,7 +251,7 @@ class AIBotService {
       if (providerName === 'claude' && process.env.ANTHROPIC_API_KEY) {
         this.provider = new ClaudeProvider(process.env.ANTHROPIC_API_KEY, this.modelName || undefined);
       } else if ((providerName === 'openai' || providerName === 'gpt') && process.env.OPENAI_API_KEY) {
-        this.provider = new OpenAIProvider(process.env.OPENAI_API_KEY, this.modelName || undefined);
+        this.provider = new OpenAIProvider(process.env.OPENAI_API_KEY, this.modelName || undefined, process.env.OPENAI_BASE_URL);
       } else if (providerName === 'gemini' && process.env.GEMINI_API_KEY) {
         this.provider = new GeminiProvider(process.env.GEMINI_API_KEY, this.modelName || undefined);
       } else {
@@ -589,9 +638,25 @@ class AIBotService {
 
     const playerNames = gameManager.getPlayerNames(gameId);
     const isFirstTurn = view.actionHistory.length < view.hands.length;
-    const prompt = isFirstTurn
-      ? buildAIContext(view, { playerNames })
-      : buildAIContextCompact(view, { playerNames });
+
+    // ─── Step 1: Intent Inference (if hints exist) ───
+    let inferenceResult: string | null = null;
+    const inferencePrompt = buildIntentInferencePrompt(view, { playerNames });
+    if (inferencePrompt) {
+      try {
+        inferenceResult = await this.provider.generateText(inferencePrompt);
+        console.log(`AI Bot [game=${gameId}, player=${playerIndex}]: inference done (${inferenceResult.length} chars)`);
+      } catch (err) {
+        console.log(`AI Bot: inference step failed (${(err as Error).message.slice(0, 60)}), skipping`);
+      }
+    }
+
+    // ─── Step 2: Action Decision (with or without inference) ───
+    const prompt = inferenceResult
+      ? buildAIContextWithInference(view, inferenceResult, { playerNames, includeRules: isFirstTurn })
+      : isFirstTurn
+        ? buildAIContext(view, { playerNames })
+        : buildAIContextCompact(view, { playerNames });
 
     // Compute smart default action (rule-based — always safe)
     const smartAction = this.getSmartAction(view, playerIndex);

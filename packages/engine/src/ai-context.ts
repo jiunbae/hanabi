@@ -306,3 +306,129 @@ Score: ${score}/${MAX_SCORE} | Clue tokens: ${view.clueTokens.current}/${view.cl
 export function buildAIContextCompact(view: PlayerView, options: AIContextOptions = {}): string {
   return buildAIContext(view, { ...options, includeRules: false, recentActionsLimit: 5 });
 }
+
+// ─── 2-Step Prompting: Intent Inference ───
+
+/**
+ * Extract hints directed at the current player from action history,
+ * along with the game state at the time of each hint.
+ */
+function extractHintsToMe(view: PlayerView, playerNames?: string[]): string[] {
+  const name = (i: number) => playerNames?.[i] ?? `Player ${i}`;
+  const myIdx = view.myIndex;
+  const lines: string[] = [];
+
+  for (let i = 0; i < view.actionHistory.length; i++) {
+    const action = view.actionHistory[i];
+    if (action.type === 'hint' && action.targetIndex === myIdx) {
+      const turnNum = i + 1;
+      const hinter = name(action.playerIndex);
+      const hintDesc = action.hint.type === 'color'
+        ? `color=${action.hint.value}`
+        : `rank=${action.hint.value}`;
+      lines.push(`  Turn ${turnNum}: ${hinter} hinted YOU about ${hintDesc}`);
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Build the Step 1 prompt: Intent Inference.
+ * Asks the LLM to reason about what each hint directed at the current
+ * player likely means (play signal, save signal, etc.).
+ */
+export function buildIntentInferencePrompt(view: PlayerView, options: AIContextOptions = {}): string | null {
+  const { playerNames } = options;
+  const name = (i: number) => playerNames?.[i] ?? `Player ${i}`;
+  const hints = extractHintsToMe(view, playerNames);
+
+  // No hints received → skip inference step
+  if (hints.length === 0) return null;
+
+  const sections: string[] = [];
+
+  sections.push(`# Nolbul — Hint Intent Analysis
+
+You are ${name(view.myIndex)}. Teammates have given you hints during this game.
+In Nolbul, you CANNOT see your own cards. Hints are the ONLY way to learn what you hold.
+
+## Hint Conventions (H-Group)
+- **Play signal**: A hint about a card that is immediately playable on the fireworks. The hinter expects you to play it.
+- **Save signal**: A hint about a card on your "chop" (oldest unclued card, rightmost). The hinter is warning you NOT to discard it because it's critical (a 5, or the last copy).
+- **Fix clue**: A second hint on an already-clued card to give you complete information (e.g., you knew rank, now they tell you color).
+- **Delayed play**: A hint about a card that will become playable soon (not yet, but after another card is played).
+
+## Current Fireworks
+${formatFireworks(view.fireworks)}`);
+
+  // Show my hand with clue info
+  const myHand = view.hands[view.myIndex];
+  const handLines: string[] = [];
+  for (let idx = 0; idx < myHand.cards.length; idx++) {
+    const clues = myHand.cards[idx].clues;
+    handLines.push(`  [${idx}] ${formatClues(clues)}`);
+  }
+  sections.push(`## My Current Hand (I cannot see the actual cards)
+${handLines.join('\n')}`);
+
+  // Show discard pile for context on critical cards
+  sections.push(`## Discard Pile: ${formatDiscardPile(view.discardPile)}`);
+
+  // Show the hints
+  sections.push(`## Hints Given to Me
+${hints.join('\n')}`);
+
+  // Recent actions for context
+  const recent = view.actionHistory.slice(-10);
+  if (recent.length > 0) {
+    sections.push(`## Recent Game Actions (for context)
+${recent.map(
+      (a, i) => `  ${view.actionHistory.length - recent.length + i + 1}. ${formatAction(a, playerNames)}`
+    ).join('\n')}`);
+  }
+
+  sections.push(`## Your Task
+For each hint I received, analyze:
+1. Which card(s) in my hand does this hint touch?
+2. Is this a PLAY signal, SAVE signal, FIX clue, or DELAYED PLAY?
+3. What action should I take based on this hint?
+
+Think step by step. Then provide a summary in this format:
+
+CONCLUSIONS:
+- Card [index]: <what I should do with it and why>
+- Recommended action: <play/discard/hint and which card/target>`);
+
+  return sections.join('\n\n');
+}
+
+/**
+ * Build the Step 2 prompt: Action Decision with intent inference results.
+ * Injects the inference from Step 1 into the standard game context.
+ */
+export function buildAIContextWithInference(
+  view: PlayerView,
+  inferenceResult: string,
+  options: AIContextOptions = {},
+): string {
+  const basePrompt = buildAIContext(view, options);
+
+  // Insert inference results before the RECOMMENDED ACTION section
+  const marker = '## RECOMMENDED ACTION';
+  const markerIdx = basePrompt.indexOf(marker);
+
+  if (markerIdx === -1) {
+    // Fallback: append before the last section
+    return basePrompt.replace(
+      'Reply with ONLY one JSON object',
+      `## Hint Intent Analysis (from reasoning step)\n${inferenceResult}\n\nUse the above analysis to inform your decision. If the analysis suggests playing a specific card, prioritize that.\n\nReply with ONLY one JSON object`,
+    );
+  }
+
+  return (
+    basePrompt.slice(0, markerIdx) +
+    `## Hint Intent Analysis (from reasoning step)\n${inferenceResult}\n\nUse the above analysis to inform your decision. If the analysis suggests playing a specific card, prioritize that.\n\n` +
+    basePrompt.slice(markerIdx)
+  );
+}
