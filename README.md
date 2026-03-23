@@ -15,6 +15,28 @@
 
 ---
 
+## Quickstart for Agents
+
+<div><img src="https://quickstart-for-agents.vercel.app/api/header.svg?theme=claude-code&title=Set+up+Hanabi+game+server+for+multi-agent+cooperation+research&mascot=thinking" width="100%" /></div>
+
+```
+Clone and set up the Hanabi web game platform — a cooperative card game environment
+for AI agent research. Start the server, then use the REST API to create games,
+join as players, and submit actions. Each response includes `legalActions` (all valid
+moves) and `actionHistory` (full game log), so agents don't need to implement rules.
+
+git clone https://github.com/jiunbae/hanabi.git && cd hanabi
+pnpm install && pnpm -w build && pnpm -w start
+
+API: POST /api/games to create, POST /api/games/:id/join to join,
+POST /api/games/:id/start to begin, POST /api/games/:id/actions to play.
+Auth via x-api-key header. See REST API section below for full docs.
+```
+
+<div><img src="https://quickstart-for-agents.vercel.app/api/footer.svg?theme=claude-code&model=Opus+4.6&project=hanabi" width="100%" /></div>
+
+---
+
 ## Overview
 
 Hanabi is a cooperative card game where players can see everyone's cards **except their own**. This platform provides:
