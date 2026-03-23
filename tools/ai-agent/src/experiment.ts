@@ -131,7 +131,7 @@ async function api(path: string, method = 'GET', data?: unknown, headers?: Recor
   return res.json();
 }
 
-async function callLLM(systemPrompt: string, userPrompt: string): Promise<string> {
+async function callLLM(systemPrompt: string, userPrompt: string, maxTokens = 16384): Promise<string> {
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'api-key': apiKey },
@@ -140,8 +140,7 @@ async function callLLM(systemPrompt: string, userPrompt: string): Promise<string
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: 512,
-      temperature: 0.3,
+      max_completion_tokens: maxTokens,
     }),
   });
   if (!res.ok) {
@@ -178,7 +177,135 @@ function parseAction(text: string, playerIndex: number) {
   return base;
 }
 
-// ─── Run a Single Game ───
+// ─── 2-Step Intent Inference ───
+
+const INFERENCE_SYSTEM = `You are an expert Nolbul (Hanabi) player analyzing hint intent.
+In Nolbul, you CANNOT see your own cards. Teammates give hints to communicate.
+
+Hint conventions:
+- PLAY signal: hint about a card that is immediately playable on the fireworks
+- SAVE signal: hint about a card on your "chop" (oldest unclued card) because it's critical
+- FIX clue: a second hint to complete information (e.g., you knew rank, now they tell color)
+
+Analyze each hint I received and conclude what action I should take.
+End with: CONCLUSION: <play/hint/discard> card [index] because <reason>`;
+
+function buildInferencePrompt(view: {
+  myIndex: number;
+  fireworks: Record<string, number>;
+  hands: { cards: { clues: { type: string; value: unknown }[] }[] }[];
+  actionHistory: { type: string; playerIndex: number; targetIndex?: number; hint?: { type: string; value: unknown } }[];
+  discardPile: { color?: string; rank?: number }[];
+}): string | null {
+  // Extract hints directed at me
+  const hints = view.actionHistory
+    .map((a, i) => ({ ...a, turn: i + 1 }))
+    .filter(a => a.type === 'hint' && a.targetIndex === view.myIndex);
+
+  if (hints.length === 0) return null;
+
+  const fw = view.fireworks;
+  const fwStr = Object.entries(fw).map(([c, v]) => `  ${c}: ${v}/5${(v as number) + 1 <= 5 ? ` (needs ${(v as number) + 1})` : ' DONE'}`).join('\n');
+
+  const myHand = view.hands[view.myIndex];
+  const handStr = myHand.cards.map((c, i) => {
+    const clues = c.clues.length === 0 ? 'no clues' : c.clues.map(cl => `${cl.type}=${cl.value}`).join(', ');
+    return `  [${i}] ${clues}`;
+  }).join('\n');
+
+  const hintStr = hints.map(h =>
+    `  Turn ${h.turn}: Player ${h.playerIndex} hinted me ${h.hint!.type}=${h.hint!.value}`
+  ).join('\n');
+
+  return `Fireworks:\n${fwStr}\n\nMy hand (I cannot see actual cards):\n${handStr}\n\nHints given to me:\n${hintStr}\n\nWhat do these hints mean? What should I do?`;
+}
+
+// ─── Run a Single Game (2-step) ───
+
+async function runGame2Step(systemPrompt: string, numPlayers: number): Promise<{ score: number; turns: number; strikes: number; actions: string[] }> {
+  const g = await api('/games', 'POST', { options: { numPlayers }, creatorName: 'AI-0' });
+  const creds = [{ gameId: g.gameId, apiKey: g.apiKey, playerIndex: 0 }];
+
+  for (let i = 1; i < numPlayers; i++) {
+    const j = await api(`/games/${g.gameId}/join`, 'POST', { playerName: `AI-${i}` });
+    creds.push({ gameId: g.gameId, apiKey: j.apiKey, playerIndex: j.playerIndex });
+  }
+
+  await api(`/games/${g.gameId}/start`, 'POST', undefined, { 'x-api-key': creds[0].apiKey });
+
+  const actionLog: string[] = [];
+  let finished = false;
+  let turnCount = 0;
+  const MAX_TURNS = 100;
+
+  while (!finished && turnCount < MAX_TURNS) {
+    const state = await api(`/games/${g.gameId}`, undefined, undefined, { 'x-api-key': creds[0].apiKey });
+    const currentPlayer = state.view.currentPlayer;
+    if (state.view.status === 'finished') break;
+
+    const cred = creds[currentPlayer];
+    const ctx = await api(
+      `/games/${g.gameId}/ai-context?includeRules=${turnCount < numPlayers ? 'true' : 'false'}`,
+      undefined, undefined, { 'x-api-key': cred.apiKey }
+    );
+
+    // Step 1: Intent inference (if hints exist)
+    let inferenceResult = '';
+    const inferencePrompt = buildInferencePrompt(ctx.view);
+    if (inferencePrompt) {
+      try {
+        inferenceResult = await callLLM(INFERENCE_SYSTEM, inferencePrompt);
+      } catch { /* skip inference on error */ }
+    }
+
+    // Step 2: Action decision with inference injected
+    let finalPrompt = ctx.prompt;
+    if (inferenceResult) {
+      // Inject before "## RECOMMENDED ACTION" or at the end
+      const marker = '## RECOMMENDED ACTION';
+      const idx = finalPrompt.indexOf(marker);
+      const injection = `## Hint Intent Analysis (reasoning step)\n${inferenceResult}\n\nUse the above analysis to decide your action.\n\n`;
+      finalPrompt = idx >= 0
+        ? finalPrompt.slice(0, idx) + injection + finalPrompt.slice(idx)
+        : finalPrompt + '\n\n' + injection;
+    }
+
+    let action;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await callLLM(systemPrompt, finalPrompt);
+        action = parseAction(response, currentPlayer);
+        break;
+      } catch (e) {
+        if (attempt === 2) action = ctx.view.legalActions[0];
+      }
+    }
+
+    if (!action) break;
+
+    try {
+      const result = await api(`/games/${g.gameId}/actions`, 'POST', { action }, { 'x-api-key': cred.apiKey });
+      actionLog.push(`T${turnCount + 1} P${currentPlayer}: ${action.type}${inferenceResult ? ' (2step)' : ''}`);
+      finished = result.finished;
+    } catch (e) {
+      const fallback = ctx.view.legalActions[0];
+      if (fallback) {
+        const result = await api(`/games/${g.gameId}/actions`, 'POST', { action: fallback }, { 'x-api-key': cred.apiKey });
+        actionLog.push(`T${turnCount + 1} P${currentPlayer}: ${fallback.type} (fallback)`);
+        finished = result.finished;
+      } else break;
+    }
+
+    turnCount++;
+  }
+
+  const final = await api(`/games/${g.gameId}`, undefined, undefined, { 'x-api-key': creds[0].apiKey });
+  const fw = final.view.fireworks;
+  const score = (fw.red ?? 0) + (fw.yellow ?? 0) + (fw.green ?? 0) + (fw.blue ?? 0) + (fw.white ?? 0);
+  return { score, turns: turnCount, strikes: final.view.strikes.current, actions: actionLog };
+}
+
+// ─── Run a Single Game (1-step baseline) ───
 
 async function runGame(systemPrompt: string, numPlayers: number): Promise<{ score: number; turns: number; strikes: number; actions: string[] }> {
   // Create game + players
@@ -258,24 +385,26 @@ async function runGame(systemPrompt: string, numPlayers: number): Promise<{ scor
 
 async function main() {
   const NUM_PLAYERS = 2;
-  const GAMES_PER_PROMPT = 5;
+  const GAMES_PER_PROMPT = parseInt(process.argv.find((_, i, a) => a[i - 1] === '--games') ?? '5', 10);
+  const mode = process.argv.includes('--2step-only') ? '2step' : process.argv.includes('--1step-only') ? '1step' : 'both';
 
   console.log(`\n${'='.repeat(60)}`);
   console.log(`NOLBUL AI PROMPT EXPERIMENT`);
-  console.log(`Players: ${NUM_PLAYERS}, Games per prompt: ${GAMES_PER_PROMPT}`);
+  console.log(`Players: ${NUM_PLAYERS}, Games per prompt: ${GAMES_PER_PROMPT}, Mode: ${mode}`);
   console.log(`LLM: GPT-5-nano (Azure OpenAI)`);
   console.log(`${'='.repeat(60)}\n`);
 
-  const results: { name: string; scores: number[]; avg: number; strikes: number[] }[] = [];
+  type Result = { name: string; scores: number[]; avg: number; strikes: number[] };
+  const results: Result[] = [];
 
-  for (const [name, prompt] of Object.entries(SYSTEM_PROMPTS).filter(([k]) => !k.startsWith('DISABLED'))) {
+  async function bench(name: string, prompt: string, runner: (p: string, n: number) => Promise<{ score: number; turns: number; strikes: number; actions: string[] }>) {
     console.log(`\n--- Testing: ${name} ---`);
     const scores: number[] = [];
     const strikes: number[] = [];
 
     for (let i = 0; i < GAMES_PER_PROMPT; i++) {
       try {
-        const result = await runGame(prompt, NUM_PLAYERS);
+        const result = await runner(prompt, NUM_PLAYERS);
         scores.push(result.score);
         strikes.push(result.strikes);
         console.log(`  Game ${i + 1}: Score ${result.score}/25, Strikes ${result.strikes}, Turns ${result.turns}`);
@@ -292,15 +421,32 @@ async function main() {
     console.log(`  → Average: ${avg.toFixed(1)}/25, Avg strikes: ${avgStrikes.toFixed(1)}`);
   }
 
+  // 1-step baselines
+  if (mode !== '2step') {
+    for (const [name, prompt] of Object.entries(SYSTEM_PROMPTS).filter(([k]) => !k.startsWith('DISABLED'))) {
+      await bench(name, prompt, runGame);
+    }
+  }
+
+  // 2-step variants (test with top prompts)
+  if (mode !== '1step') {
+    const twoStepPrompts = ['follow_recommendation', 'numbered_steps', 'minimal_strict'];
+    for (const name of twoStepPrompts) {
+      if (SYSTEM_PROMPTS[name]) {
+        await bench(`2step_${name}`, SYSTEM_PROMPTS[name], runGame2Step);
+      }
+    }
+  }
+
   // Summary
   console.log(`\n${'='.repeat(60)}`);
   console.log(`RESULTS SUMMARY`);
   console.log(`${'='.repeat(60)}`);
   results.sort((a, b) => b.avg - a.avg);
   for (const r of results) {
-    console.log(`  ${r.name.padEnd(20)} avg=${r.avg.toFixed(1)}/25  scores=[${r.scores.join(',')}]  strikes=[${r.strikes.join(',')}]`);
+    console.log(`  ${r.name.padEnd(25)} avg=${r.avg.toFixed(1)}/25  scores=[${r.scores.join(',')}]  strikes=[${r.strikes.join(',')}]`);
   }
-  console.log(`\nBest prompt: ${results[0].name} (avg ${results[0].avg.toFixed(1)})`);
+  console.log(`\nBest: ${results[0]?.name} (avg ${results[0]?.avg.toFixed(1)})`);
 }
 
 main().catch(console.error);

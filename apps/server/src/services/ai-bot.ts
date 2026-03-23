@@ -111,16 +111,17 @@ class OpenAIProvider implements LLMProvider {
 
   private async getClient(): Promise<import('openai').default> {
     if (!this.client) {
+      const { default: OpenAI } = await import('openai');
       if (this.isAzure) {
-        const { AzureOpenAI } = await import('openai');
-        this.client = new AzureOpenAI({
+        // Azure OpenAI: use standard client with Azure-compatible base URL + api-key header
+        const endpoint = this.baseURL!.replace(/\/$/, '');
+        this.client = new OpenAI({
           apiKey: this.apiKey,
-          endpoint: this.baseURL!.replace(/\/openai\/deployments\/.*/, ''),
-          apiVersion: '2025-01-01-preview',
-          deployment: this.model,
+          baseURL: `${endpoint}/openai/deployments/${this.model}`,
+          defaultQuery: { 'api-version': '2025-01-01-preview' },
+          defaultHeaders: { 'api-key': this.apiKey },
         });
       } else {
-        const { default: OpenAI } = await import('openai');
         this.client = new OpenAI({
           apiKey: this.apiKey,
           ...(this.baseURL && { baseURL: this.baseURL }),
@@ -132,9 +133,11 @@ class OpenAIProvider implements LLMProvider {
 
   async generateAction(prompt: string): Promise<GameAction> {
     const client = await this.getClient();
+    // Reasoning models (gpt-5-nano, o1, o3) need higher token budget for internal CoT
+    const tokenBudget = this.isAzure ? 16384 : promptConfig.maxTokens;
     const response = await client.chat.completions.create({
       model: this.model,
-      max_completion_tokens: promptConfig.maxTokens,
+      max_completion_tokens: tokenBudget,
       messages: [
         { role: 'system', content: promptConfig.system.default },
         { role: 'user', content: prompt },
@@ -146,9 +149,10 @@ class OpenAIProvider implements LLMProvider {
 
   async generateText(prompt: string, systemPrompt?: string): Promise<string> {
     const client = await this.getClient();
+    const tokenBudget = this.isAzure ? 16384 : 512;
     const response = await client.chat.completions.create({
       model: this.model,
-      max_completion_tokens: 512,
+      max_completion_tokens: tokenBudget,
       messages: [
         { role: 'system', content: systemPrompt ?? 'You are an expert Nolbul (Hanabi) player analyzing game state.' },
         { role: 'user', content: prompt },
@@ -331,6 +335,14 @@ class AIBotService {
   getAIPlayers(gameId: string): number[] {
     const map = this.aiPlayers.get(gameId);
     return map ? Array.from(map.keys()) : [];
+  }
+
+  /** Mark an existing player as AI-controlled */
+  markAsAI(gameId: string, playerIndex: number): void {
+    if (!this.aiPlayers.has(gameId)) {
+      this.aiPlayers.set(gameId, new Set());
+    }
+    this.aiPlayers.get(gameId)!.add(playerIndex);
   }
 
   /** Add an AI player to a waiting game. Returns the joined player info. */

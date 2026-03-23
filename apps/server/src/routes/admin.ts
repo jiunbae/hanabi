@@ -88,6 +88,15 @@ admin.post('/ai-config', async (c) => {
   return c.json(aiBotService.getConfig());
 });
 
+// Mark a player as AI-controlled (for experiments)
+admin.post('/games/:id/mark-ai', async (c) => {
+  const gameId = c.req.param('id');
+  const body = await c.req.json().catch(() => null);
+  const playerIndex = (body as { playerIndex?: number })?.playerIndex ?? 0;
+  aiBotService.markAsAI(gameId, playerIndex);
+  return c.json({ gameId, playerIndex, aiPlayers: aiBotService.getAIPlayers(gameId) });
+});
+
 // Get AI prompts config
 admin.get('/ai-prompts', (c) => {
   try {
