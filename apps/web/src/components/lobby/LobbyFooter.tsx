@@ -1,10 +1,12 @@
 import { useT } from '../../lib/i18n.js';
 import { useI18nStore } from '../../lib/i18n.js';
 import type { Locale } from '../../lib/i18n.js';
+import { useGameStore } from '../../stores/game-store.js';
 
 export function LobbyFooter() {
   const t = useT();
   const { locale, setLocale } = useI18nStore();
+  const { setScreen } = useGameStore();
 
   return (
     <footer className="lobby-footer">

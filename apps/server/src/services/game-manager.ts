@@ -212,6 +212,72 @@ class GameManager {
     return room.players.map((p) => p.name);
   }
 
+  /** Internal action submission — bypasses apiKey auth. For server-side AI bot use only. */
+  submitActionInternal(gameId: string, playerIndex: number, action: GameAction): { view: PlayerView; finished: boolean } {
+    const room = this.getRoom(gameId);
+    if (!room.state) throw new HanabiError('Game not started', ErrorCodes.GAME_NOT_STARTED);
+    if (room.state.status !== 'playing') throw new HanabiError('Game is finished', ErrorCodes.INVALID_ACTION);
+    if (action.playerIndex !== playerIndex) {
+      throw new HanabiError('Action playerIndex mismatch', ErrorCodes.INVALID_ACTION);
+    }
+
+    const error = validateAction(room.state, action);
+    if (error) throw new HanabiError(error.message, ErrorCodes.INVALID_ACTION);
+
+    room.state = applyAction(room.state, action);
+
+    db.insert(schema.actionLogs).values({
+      gameId,
+      turnIndex: room.state.turn - 1,
+      action: JSON.stringify(action),
+      timestamp: new Date().toISOString(),
+    }).catch((e) => console.error('DB insert action failed:', e));
+
+    const finished = room.state.status === 'finished';
+    if (finished) {
+      this.finishedAt.set(gameId, Date.now());
+      db.update(schema.games)
+        .set({ status: 'finished', score: getScore(room.state.fireworks), finishedAt: new Date().toISOString() })
+        .where(eq(schema.games.id, gameId))
+        .catch((e) => console.error('DB update game finished failed:', e));
+    }
+
+    // Fire callbacks so WebSocket broadcasts reach human players
+    for (const cb of this.onActionCallbacks) cb(gameId, room.state);
+
+    return { view: getPlayerView(room.state, playerIndex), finished };
+  }
+
+  /** Detailed game info for admin panel */
+  getGameDetail(gameId: string) {
+    const room = this.getRoom(gameId);
+    return {
+      gameId: room.id,
+      status: room.state?.status ?? 'waiting' as const,
+      numPlayers: room.options.numPlayers,
+      currentPlayers: room.players.length,
+      players: room.players.map((p) => p.name),
+      score: room.state ? getScore(room.state.fireworks) : null,
+      turn: room.state?.turn ?? 0,
+      actionCount: room.state?.actions.length ?? 0,
+      createdAt: room.createdAt,
+    };
+  }
+
+  /** List all games with admin-level detail */
+  listGamesDetailed() {
+    return Array.from(this.rooms.values()).map((room) => ({
+      gameId: room.id,
+      status: room.state?.status ?? 'waiting' as const,
+      numPlayers: room.options.numPlayers,
+      currentPlayers: room.players.length,
+      players: room.players.map((p) => p.name),
+      score: room.state ? getScore(room.state.fireworks) : null,
+      actionCount: room.state?.actions.length ?? 0,
+      createdAt: room.createdAt,
+    }));
+  }
+
   listGames() {
     return Array.from(this.rooms.values()).map((room) => ({
       gameId: room.id,

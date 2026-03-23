@@ -132,7 +132,7 @@ function getTableLayout(numPlayers: number, myIndex: number, svgWidth: number, s
 }
 
 export function GameBoard() {
-  const { view, gameId, apiKey, playerIndex, setView, setError, reset } = useGameStore();
+  const { view, gameId, apiKey, playerIndex, setView, setError, reset, aiPlayers, setAIPlayers } = useGameStore();
   const { sendAction } = useWebSocket();
   const t = useT();
   const [hoveredHint, setHoveredHint] = useState<{ type: 'color'; value: Color } | { type: 'rank'; value: Rank } | null>(null);
@@ -141,6 +141,12 @@ export function GameBoard() {
   const [feedback, setFeedback] = useState<'success' | 'strike' | null>(null);
   const prevStrikesRef = useRef<number | null>(null);
   const prevScoreRef = useRef<number | null>(null);
+
+  // Fetch AI player status
+  useEffect(() => {
+    if (!gameId || !apiKey) return;
+    api.getAIStatus(gameId, apiKey).then((s) => setAIPlayers(s.aiPlayers)).catch(() => {});
+  }, [gameId, apiKey, setAIPlayers]);
 
   // Detect play success/failure by comparing strikes and score changes
   useEffect(() => {
@@ -303,28 +309,38 @@ export function GameBoard() {
         {positions.map(({ playerIndex: pIdx, x: px, y: py }) => {
           const hand = view.hands[pIdx];
           const isMe = pIdx === view.myIndex;
+          const isAI = aiPlayers.includes(pIdx);
           return (
-            <HandView
-              key={pIdx}
-              cards={hand.cards}
-              x={px}
-              y={py}
-              playerIndex={pIdx}
-              isCurrentPlayer={pIdx === view.currentPlayer}
-              isMyHand={isMe}
-              isMyTurn={isMyTurn}
-              myIndex={view.myIndex}
-              canDiscard={canDiscard}
-              canHint={canHint}
-              onAction={handleAction}
-              hoveredHint={hintTargetPlayer === pIdx ? hoveredHint : null}
-              onHoverHint={(hint) => {
-                setHoveredHint(hint);
-                setHintTargetPlayer(hint ? pIdx : null);
-              }}
-              focusedHand={focusedHand}
-              onHandFocus={(pIdx) => setFocusedHand(pIdx)}
-            />
+            <g key={pIdx}>
+              <HandView
+                cards={hand.cards}
+                x={px}
+                y={py}
+                playerIndex={pIdx}
+                isCurrentPlayer={pIdx === view.currentPlayer}
+                isMyHand={isMe}
+                isMyTurn={isMyTurn}
+                myIndex={view.myIndex}
+                canDiscard={canDiscard}
+                canHint={canHint}
+                onAction={handleAction}
+                hoveredHint={hintTargetPlayer === pIdx ? hoveredHint : null}
+                onHoverHint={(hint) => {
+                  setHoveredHint(hint);
+                  setHintTargetPlayer(hint ? pIdx : null);
+                }}
+                focusedHand={focusedHand}
+                onHandFocus={(pIdx) => setFocusedHand(pIdx)}
+              />
+              {isAI && (
+                <g transform={`translate(${px + 80}, ${py - 2})`}>
+                  <rect x={0} y={0} width={28} height={14} rx={3} fill="rgba(52,152,219,0.3)" stroke="rgba(52,152,219,0.6)" strokeWidth={0.5} />
+                  <text x={14} y={10.5} textAnchor="middle" fontSize={8} fontWeight="700" fill="#3498db">
+                    {t('game.aiIndicator')}
+                  </text>
+                </g>
+              )}
+            </g>
           );
         })}
       </svg>

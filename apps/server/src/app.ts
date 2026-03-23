@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { games } from './routes/games.js';
+import { admin } from './routes/admin.js';
 import { HanabiError } from '@hanabi/shared';
 import { GAME_RULES } from '@hanabi/engine';
 
@@ -14,12 +15,13 @@ app.use('*', logger());
 app.use('/api/*', cors({
   origin: ALLOWED_ORIGINS,
   allowMethods: ['GET', 'POST'],
-  allowHeaders: ['Content-Type', 'x-api-key'],
+  allowHeaders: ['Content-Type', 'x-api-key', 'x-admin-key'],
 }));
 
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.route('/api/games', games);
+app.route('/api/admin', admin);
 
 // Static game rules + action format reference for AI agents
 app.get('/api/rules', (c) => c.json({

@@ -3,6 +3,7 @@ import { useT } from './lib/i18n.js';
 import { LobbyView } from './components/lobby/LobbyView.js';
 import { GameBoard } from './components/game/GameBoard.js';
 import { TutorialView } from './components/TutorialView.js';
+import { AdminPanel } from './components/admin/AdminPanel.js';
 import { LanguageSwitcher } from './components/LanguageSwitcher.js';
 import { FireworksBackground } from './components/FireworksBackground.js';
 
@@ -34,6 +35,7 @@ export function App() {
         {screen === 'lobby' && <LobbyView />}
         {screen === 'game' && <GameBoard />}
         {screen === 'tutorial' && <TutorialView onBack={() => setScreen('lobby')} />}
+        {screen === 'admin' && <AdminPanel />}
       </div>
     </>
   );

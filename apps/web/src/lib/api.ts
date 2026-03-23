@@ -61,3 +61,68 @@ export function getLobbyInfo(gameId: string, apiKey: string) {
     headers: { 'x-api-key': apiKey },
   });
 }
+
+// AI Player APIs
+
+export function addAIPlayer(gameId: string, apiKey: string) {
+  return request<{ playerIndex: number; name: string }>(`/games/${gameId}/add-ai`, {
+    method: 'POST',
+    headers: { 'x-api-key': apiKey },
+  });
+}
+
+export function getAIStatus(gameId: string, apiKey: string) {
+  return request<{ aiPlayers: number[]; configured: boolean }>(`/games/${gameId}/ai-status`, {
+    headers: { 'x-api-key': apiKey },
+  });
+}
+
+// Admin APIs
+
+export function adminListGames(adminKey: string) {
+  return request<{ games: AdminGameInfo[] }>('/admin/games', {
+    headers: { 'x-admin-key': adminKey },
+  });
+}
+
+export function adminGetStats(adminKey: string) {
+  return request<AdminStats>('/admin/stats', {
+    headers: { 'x-admin-key': adminKey },
+  });
+}
+
+export function adminGetAIConfig(adminKey: string) {
+  return request<{ provider: string; model: string; configured: boolean }>('/admin/ai-config', {
+    headers: { 'x-admin-key': adminKey },
+  });
+}
+
+export function adminSetAIConfig(adminKey: string, config: { provider: string; model: string }) {
+  return request<{ provider: string; model: string; configured: boolean }>('/admin/ai-config', {
+    method: 'POST',
+    headers: { 'x-admin-key': adminKey },
+    body: JSON.stringify(config),
+  });
+}
+
+export interface AdminGameInfo {
+  gameId: string;
+  status: string;
+  numPlayers: number;
+  currentPlayers: number;
+  players: string[];
+  aiPlayers: number[];
+  score: number | null;
+  actionCount: number;
+  createdAt: string;
+}
+
+export interface AdminStats {
+  total: number;
+  waiting: number;
+  playing: number;
+  finished: number;
+  avgScore: number;
+  aiGames: number;
+  aiConfig: { provider: string; model: string; configured: boolean };
+}

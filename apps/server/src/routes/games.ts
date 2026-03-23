@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { gameManager } from '../services/game-manager.js';
+import { aiBotService } from '../services/ai-bot.js';
 import { HanabiError, ErrorCodes } from '@hanabi/shared';
 import type { GameOptions, GameAction } from '@hanabi/engine';
 import { MIN_PLAYERS, MAX_PLAYERS, buildAIContext, GAME_RULES } from '@hanabi/engine';
@@ -106,6 +107,40 @@ games.post('/:id/actions', async (c) => {
   }
   const { view, finished } = gameManager.submitAction(gameId, apiKey, action);
   return c.json({ success: true, view, finished });
+});
+
+// Add AI player to a waiting game (creator only)
+games.post('/:id/add-ai', (c) => {
+  const gameId = c.req.param('id');
+  const apiKey = c.req.header('x-api-key');
+  if (!apiKey) {
+    throw new HanabiError('Missing x-api-key header', ErrorCodes.UNAUTHORIZED, 401);
+  }
+  // Only creator can add AI players
+  const playerIndex = gameManager.getPlayerIndexByApiKey(gameId, apiKey);
+  if (playerIndex !== 0) {
+    throw new HanabiError('Only the game creator can add AI players', ErrorCodes.UNAUTHORIZED, 403);
+  }
+  try {
+    const result = aiBotService.addAIPlayer(gameId);
+    return c.json(result);
+  } catch (e) {
+    throw new HanabiError((e as Error).message, ErrorCodes.INVALID_REQUEST);
+  }
+});
+
+// Get AI player status for a game
+games.get('/:id/ai-status', (c) => {
+  const gameId = c.req.param('id');
+  const apiKey = c.req.header('x-api-key');
+  if (!apiKey) {
+    throw new HanabiError('Missing x-api-key header', ErrorCodes.UNAUTHORIZED, 401);
+  }
+  gameManager.getPlayerIndexByApiKey(gameId, apiKey); // validates access
+  return c.json({
+    aiPlayers: aiBotService.getAIPlayers(gameId),
+    configured: aiBotService.isConfigured(),
+  });
 });
 
 // Get AI context (LLM-optimized game state)

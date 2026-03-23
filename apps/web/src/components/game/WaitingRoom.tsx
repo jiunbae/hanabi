@@ -57,10 +57,13 @@ function HanabiLogo() {
 
 export function WaitingRoom({ gameId, apiKey, isCreator, onStart }: WaitingRoomProps) {
   const t = useT();
-  const { reset } = useGameStore();
+  const { reset, setAIPlayers } = useGameStore();
   const [players, setPlayers] = useState<string[]>([]);
   const [numPlayers, setNumPlayers] = useState(2);
   const [copied, setCopied] = useState(false);
+  const [aiPlayerIndices, setAiPlayerIndices] = useState<number[]>([]);
+  const [aiConfigured, setAiConfigured] = useState(false);
+  const [addingAI, setAddingAI] = useState(false);
 
   useEffect(() => {
     if (!gameId || !apiKey) return;
@@ -69,13 +72,36 @@ export function WaitingRoom({ gameId, apiKey, isCreator, onStart }: WaitingRoomP
         setPlayers(info.players);
         setNumPlayers(info.numPlayers);
       }).catch(() => {});
+      api.getAIStatus(gameId, apiKey).then((status) => {
+        setAiPlayerIndices(status.aiPlayers);
+        setAIPlayers(status.aiPlayers);
+        setAiConfigured(status.configured);
+      }).catch(() => {});
     };
     poll();
     const interval = setInterval(poll, 2000);
     return () => clearInterval(interval);
-  }, [gameId, apiKey]);
+  }, [gameId, apiKey, setAIPlayers]);
 
   const isFull = players.length >= numPlayers;
+
+  const handleAddAI = async () => {
+    if (!gameId || !apiKey || addingAI) return;
+    setAddingAI(true);
+    try {
+      await api.addAIPlayer(gameId, apiKey);
+      // Re-poll to update
+      const info = await api.getLobbyInfo(gameId, apiKey);
+      setPlayers(info.players);
+      const status = await api.getAIStatus(gameId, apiKey);
+      setAiPlayerIndices(status.aiPlayers);
+      setAIPlayers(status.aiPlayers);
+    } catch (e) {
+      console.error('Failed to add AI player:', e);
+    } finally {
+      setAddingAI(false);
+    }
+  };
 
   const handleCopyId = () => {
     if (gameId) {
@@ -152,7 +178,10 @@ export function WaitingRoom({ gameId, apiKey, isCreator, onStart }: WaitingRoomP
                 {i === 0 && joined && (
                   <span className="slot-host-badge">{t('waiting.host')}</span>
                 )}
-                {joined && i > 0 && (
+                {joined && aiPlayerIndices.includes(i) && (
+                  <span className="slot-ai-badge">{t('waiting.aiPlayer')}</span>
+                )}
+                {joined && i > 0 && !aiPlayerIndices.includes(i) && (
                   <span className="slot-ready-badge">{t('waiting.ready')}</span>
                 )}
               </div>
@@ -164,18 +193,30 @@ export function WaitingRoom({ gameId, apiKey, isCreator, onStart }: WaitingRoomP
       {/* Action area */}
       <div className="waiting-action">
         {isCreator ? (
-          <button
-            className={`btn btn-lg ${isFull ? 'btn-success' : 'btn-dark'}`}
-            onClick={onStart}
-            disabled={!isFull}
-            style={{
-              animation: isFull ? 'pulse 2s infinite' : undefined,
-              opacity: isFull ? 1 : 0.4,
-              cursor: isFull ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {isFull ? `🎆 ${t('waiting.startGame')}` : t('waiting.waitingForPlayers')}
-          </button>
+          <>
+            {!isFull && aiConfigured && (
+              <button
+                className="btn btn-dark"
+                onClick={handleAddAI}
+                disabled={addingAI}
+                style={{ marginBottom: 12, opacity: addingAI ? 0.5 : 0.85 }}
+              >
+                🤖 {t('waiting.addAI')}
+              </button>
+            )}
+            <button
+              className={`btn btn-lg ${isFull ? 'btn-success' : 'btn-dark'}`}
+              onClick={onStart}
+              disabled={!isFull}
+              style={{
+                animation: isFull ? 'pulse 2s infinite' : undefined,
+                opacity: isFull ? 1 : 0.4,
+                cursor: isFull ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {isFull ? `🎆 ${t('waiting.startGame')}` : t('waiting.waitingForPlayers')}
+            </button>
+          </>
         ) : (
           <div className="waiting-host-msg">
             {t('waiting.waitingForHost')}

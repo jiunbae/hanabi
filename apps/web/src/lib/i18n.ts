@@ -110,6 +110,31 @@ const translations = {
     'tutorial.tip1': 'The discard pile is public — track which cards are still available.',
     'tutorial.tip2': 'Completing a color stack (playing a 5) earns a bonus clue token.',
     'tutorial.tip3': 'Fives are unique — never discard them!',
+
+    // AI
+    'waiting.addAI': 'Add AI Player',
+    'waiting.aiPlayer': 'AI',
+    'game.aiIndicator': 'AI',
+
+    // Admin
+    'admin.title': 'Admin Panel',
+    'admin.login': 'Admin Login',
+    'admin.password': 'Admin Key',
+    'admin.enter': 'Enter',
+    'admin.back': 'Back to Lobby',
+    'admin.games': 'Games',
+    'admin.stats': 'Statistics',
+    'admin.aiConfig': 'AI Configuration',
+    'admin.provider': 'Provider',
+    'admin.model': 'Model',
+    'admin.save': 'Save',
+    'admin.configured': 'Configured',
+    'admin.notConfigured': 'Not Configured',
+    'admin.totalGames': 'Total Games',
+    'admin.activeGames': 'Active Games',
+    'admin.avgScore': 'Avg Score',
+    'admin.aiGames': 'AI Games',
+    'footer.admin': 'Admin',
   },
   ko: {
     // 로비
@@ -218,6 +243,31 @@ const translations = {
     'tutorial.tip1': '버린 카드 더미는 공개 — 어떤 카드가 남았는지 추적하세요.',
     'tutorial.tip2': '5를 올리면 (색상 완성) 보너스 단서 토큰을 받습니다.',
     'tutorial.tip3': '5는 색상별 1장뿐 — 절대 버리지 마세요!',
+
+    // AI
+    'waiting.addAI': 'AI 플레이어 추가',
+    'waiting.aiPlayer': 'AI',
+    'game.aiIndicator': 'AI',
+
+    // 관리자
+    'admin.title': '관리자 패널',
+    'admin.login': '관리자 로그인',
+    'admin.password': '관리자 키',
+    'admin.enter': '입장',
+    'admin.back': '로비로 돌아가기',
+    'admin.games': '게임 목록',
+    'admin.stats': '통계',
+    'admin.aiConfig': 'AI 설정',
+    'admin.provider': '제공자',
+    'admin.model': '모델',
+    'admin.save': '저장',
+    'admin.configured': '설정됨',
+    'admin.notConfigured': '미설정',
+    'admin.totalGames': '전체 게임',
+    'admin.activeGames': '진행 중',
+    'admin.avgScore': '평균 점수',
+    'admin.aiGames': 'AI 게임',
+    'footer.admin': '관리자',
   },
 } as const;
 

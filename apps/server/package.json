@@ -16,7 +16,9 @@
     "@libsql/client": "^0.17.0",
     "drizzle-orm": "^0.45.0",
     "nanoid": "^5.1.0",
-    "ws": "^8.20.0"
+    "ws": "^8.20.0",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "openai": "^4.77.0"
   },
   "devDependencies": {
     "@types/ws": "^8.5.13",
