@@ -1,0 +1,26 @@
+{
+  "name": "@hanabi/server",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@hanabi/engine": "workspace:*",
+    "@hanabi/shared": "workspace:*",
+    "@hono/node-server": "^1.14.0",
+    "hono": "^4.7.0",
+    "@libsql/client": "^0.14.0",
+    "drizzle-orm": "^0.38.0",
+    "nanoid": "^5.1.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "drizzle-kit": "^0.30.0"
+  }
+}

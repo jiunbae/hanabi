@@ -1,0 +1,17 @@
+{
+  "name": "hanabi",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "build": "turbo build",
+    "test": "turbo test",
+    "dev": "turbo dev --filter @hanabi/server --filter @hanabi/web",
+    "lint": "turbo lint",
+    "clean": "turbo clean",
+    "start": "NODE_ENV=production node apps/server/dist/main.js"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0"
+  }
+}
