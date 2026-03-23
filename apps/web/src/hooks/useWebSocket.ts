@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import type { ClientMessage, ServerMessage } from '@hanabi/shared';
 import type { GameAction } from '@hanabi/engine';
 import { useGameStore } from '../stores/game-store.js';
+import { useT } from '../lib/i18n.js';
 
 const MAX_RECONNECT_DELAY = 10000;
 
@@ -10,6 +11,7 @@ export function useWebSocket() {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelay = useRef(1000);
   const { gameId, apiKey, playerName, setView, setError } = useGameStore();
+  const t = useT();
 
   const connect = useCallback(() => {
     if (!gameId || !apiKey) return;
@@ -89,7 +91,7 @@ export function useWebSocket() {
   const sendAction = useCallback((action: GameAction) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN || !gameId) {
-      setError('Connection lost. Reconnecting...');
+      setError(t('connection.lost'));
       return;
     }
     const msg: ClientMessage = {

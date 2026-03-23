@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { gameManager } from '../services/game-manager.js';
 import { HanabiError, ErrorCodes } from '@hanabi/shared';
 import type { GameOptions, GameAction } from '@hanabi/engine';
-import { MIN_PLAYERS, MAX_PLAYERS } from '@hanabi/engine';
+import { MIN_PLAYERS, MAX_PLAYERS, buildAIContext, GAME_RULES } from '@hanabi/engine';
 
 const games = new Hono();
 
@@ -106,6 +106,27 @@ games.post('/:id/actions', async (c) => {
   }
   const { view, finished } = gameManager.submitAction(gameId, apiKey, action);
   return c.json({ success: true, view, finished });
+});
+
+// Get AI context (LLM-optimized game state)
+games.get('/:id/ai-context', async (c) => {
+  const gameId = c.req.param('id');
+  const apiKey = c.req.header('x-api-key');
+  if (!apiKey) {
+    throw new HanabiError('Missing x-api-key header', ErrorCodes.UNAUTHORIZED, 401);
+  }
+  const view = gameManager.getGameView(gameId, apiKey);
+  const playerNames = gameManager.getPlayerNames(gameId);
+  const includeRules = c.req.query('includeRules') !== 'false';
+  const recentActionsLimit = parseInt(c.req.query('recentActionsLimit') ?? '10', 10);
+  const prompt = buildAIContext(view, { playerNames, includeRules, recentActionsLimit });
+  return c.json({
+    gameId,
+    prompt,
+    view,
+    isMyTurn: view.currentPlayer === view.myIndex,
+    status: view.status,
+  });
 });
 
 // Get replay (authenticated)

@@ -10,6 +10,7 @@ export type {
   StartGameResponse, ReplayResponse,
   SimulateRequest, SimulateResponse,
   GameListItem, GameListResponse,
+  AIContextRequest, AIContextResponse, GameRulesResponse,
 } from './api-types.js';
 
 export { HanabiError, ErrorCodes } from './errors.js';

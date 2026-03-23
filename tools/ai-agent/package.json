@@ -1,0 +1,19 @@
+{
+  "name": "@hanabi/ai-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI agent runner for Hanabi — connects LLMs (Claude, OpenAI, Gemini) to the game API",
+  "scripts": {
+    "play": "npx tsx src/play.ts",
+    "self-play": "npx tsx src/self-play.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

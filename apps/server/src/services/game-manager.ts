@@ -207,6 +207,11 @@ class GameManager {
     return this.getPlayerIndex(room, apiKey);
   }
 
+  getPlayerNames(gameId: string): string[] {
+    const room = this.getRoom(gameId);
+    return room.players.map((p) => p.name);
+  }
+
   listGames() {
     return Array.from(this.rooms.values()).map((room) => ({
       gameId: room.id,

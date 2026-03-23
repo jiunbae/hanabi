@@ -69,7 +69,7 @@ export function DeckView({ deckSize, x, y }: DeckViewProps) {
       )}
       {isEmpty && (
         <text x={w / 2} y={h / 2 + 4} textAnchor="middle" fontSize={11} fill="#555" fontWeight="600">
-          Empty
+          {t('game.deckEmpty')}
         </text>
       )}
     </g>

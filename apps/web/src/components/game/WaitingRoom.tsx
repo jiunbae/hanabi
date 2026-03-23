@@ -153,7 +153,7 @@ export function WaitingRoom({ gameId, apiKey, isCreator, onStart }: WaitingRoomP
                   <span className="slot-host-badge">{t('waiting.host')}</span>
                 )}
                 {joined && i > 0 && (
-                  <span className="slot-ready-badge">Ready</span>
+                  <span className="slot-ready-badge">{t('waiting.ready')}</span>
                 )}
               </div>
             );

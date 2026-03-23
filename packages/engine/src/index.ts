@@ -43,3 +43,7 @@ export { getScore, isPerfectScore, getGameScore } from './scoring.js';
 // Variants
 export { getVariant } from './variants.js';
 export type { VariantConfig } from './variants.js';
+
+// AI Context
+export { buildAIContext, buildAIContextCompact, GAME_RULES } from './ai-context.js';
+export type { AIContextOptions } from './ai-context.js';
