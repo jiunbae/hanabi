@@ -1,0 +1,21 @@
+services:
+  hanabi:
+    build: .
+    container_name: hanabi
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - ALLOWED_ORIGINS=https://hanabi.jiun.dev,http://localhost:3001
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: hanabi-tunnel
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - hanabi
+    restart: unless-stopped
