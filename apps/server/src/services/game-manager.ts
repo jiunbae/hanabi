@@ -8,7 +8,7 @@ import {
 import type { GameState, GameAction, GameOptions, PlayerView } from '@hanabi/engine';
 import { HanabiError, ErrorCodes } from '@hanabi/shared';
 import { db, schema } from '../db/index.js';
-import { eq } from 'drizzle-orm';
+import { eq, and, lt, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 interface GameRoom {
@@ -22,6 +22,7 @@ interface GameRoom {
 const FINISHED_GAME_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const WAITING_GAME_TTL_MS = 60 * 60 * 1000; // 1 hour for unstarted games
 const EVICTION_INTERVAL_MS = 5 * 60 * 1000; // check every 5 minutes
+const DB_CLEANUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours — purge old DB records
 
 /** In-memory game manager. DB writes are fire-and-forget for persistence/replay. */
 type GameEventCallback = (gameId: string, state: GameState) => void;
@@ -58,6 +59,24 @@ class GameManager {
         for (const cb of this.onEvictCallbacks) cb(gameId);
       }
     }
+    // Purge old finished games from DB (24h+)
+    this.purgeOldDbRecords().catch((e) => console.error('DB cleanup failed:', e));
+  }
+
+  private async purgeOldDbRecords(): Promise<void> {
+    const cutoff = new Date(Date.now() - DB_CLEANUP_TTL_MS).toISOString();
+    // Find old finished games
+    const oldGames = await db.select({ id: schema.games.id })
+      .from(schema.games)
+      .where(and(eq(schema.games.status, 'finished'), lt(schema.games.finishedAt, cutoff)));
+    if (oldGames.length === 0) return;
+
+    const ids = oldGames.map((g) => g.id);
+    // Delete related records first, then games
+    await db.delete(schema.actionLogs).where(inArray(schema.actionLogs.gameId, ids));
+    await db.delete(schema.players).where(inArray(schema.players.gameId, ids));
+    await db.delete(schema.games).where(inArray(schema.games.id, ids));
+    console.log(`DB cleanup: purged ${ids.length} finished games older than 24h`);
   }
 
   createGame(options: GameOptions, creatorName: string): { gameId: string; playerIndex: number; apiKey: string } {
@@ -137,7 +156,12 @@ class GameManager {
       throw new HanabiError('Action playerIndex does not match authenticated player', ErrorCodes.UNAUTHORIZED, 403);
     }
 
-    return this.executeAction(room, gameId, playerIndex, action);
+    const result = this.executeAction(room, gameId, playerIndex, action);
+
+    // Fire callbacks so AI bot can trigger next turn
+    for (const cb of this.onActionCallbacks) cb(gameId, room.state!);
+
+    return result;
   }
 
   getLobbyInfo(gameId: string, apiKey: string): { players: string[]; numPlayers: number; status: string } {
@@ -267,13 +291,18 @@ class GameManager {
   }
 
   listGames() {
-    return Array.from(this.rooms.values()).map((room) => ({
-      gameId: room.id,
-      numPlayers: room.options.numPlayers,
-      currentPlayers: room.players.length,
-      status: room.state?.status ?? 'waiting',
-      createdAt: room.createdAt,
-    }));
+    return Array.from(this.rooms.values())
+      .filter((room) => {
+        const status = room.state?.status ?? 'waiting';
+        return status !== 'finished';
+      })
+      .map((room) => ({
+        gameId: room.id,
+        numPlayers: room.options.numPlayers,
+        currentPlayers: room.players.length,
+        status: room.state?.status ?? 'waiting',
+        createdAt: room.createdAt,
+      }));
   }
 
   private authenticatePlayer(room: GameRoom, apiKey: string): number {
