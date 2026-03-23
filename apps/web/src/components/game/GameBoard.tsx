@@ -89,13 +89,13 @@ function ScoreBreakdown({ fireworks }: { fireworks: Record<Color, number> }) {
 
 /**
  * Compute table layout positions for hands around a central area.
- * My hand is always at the bottom. Other players are arranged at the top/sides.
+ * My hand is always at the bottom. Other players are arranged:
+ * - 1 other: top center
+ * - 2 others: top-left, top-right
+ * - 3 others (4-player): compass layout — top, left, right
+ * - 4+ others: evenly across top
  */
 function getTableLayout(numPlayers: number, myIndex: number, svgWidth: number, svgHeight: number) {
-  // The center table area
-  const centerY = 120;
-  const centerAreaHeight = 100;
-
   // Gather other player indices in clockwise order
   const others: number[] = [];
   for (let i = 1; i < numPlayers; i++) {
@@ -103,29 +103,43 @@ function getTableLayout(numPlayers: number, myIndex: number, svgWidth: number, s
   }
 
   const positions: { x: number; y: number; playerIndex: number }[] = [];
-
-  // Position other players across the top
-  const topY = 10;
   const otherCount = others.length;
-  if (otherCount === 1) {
-    positions.push({ playerIndex: others[0], x: (svgWidth - 340) / 2, y: topY });
-  } else if (otherCount === 2) {
-    positions.push({ playerIndex: others[0], x: 24, y: topY });
-    positions.push({ playerIndex: others[1], x: svgWidth - 370, y: topY });
-  } else if (otherCount === 3) {
-    positions.push({ playerIndex: others[0], x: 24, y: topY });
+
+  let centerY: number;
+
+  if (otherCount === 3) {
+    // 4-player compass layout: top, left, right + me at bottom
+    centerY = svgHeight / 2 - 30;
+    const topY = 10;
+    const sideY = centerY - 20;
+
+    // Top center: player across from me
     positions.push({ playerIndex: others[1], x: (svgWidth - 340) / 2, y: topY });
-    positions.push({ playerIndex: others[2], x: svgWidth - 370, y: topY });
-  } else if (otherCount >= 4) {
-    // Distribute evenly
-    const spacing = (svgWidth - 360) / (otherCount - 1);
-    for (let i = 0; i < otherCount; i++) {
-      positions.push({ playerIndex: others[i], x: 24 + i * spacing, y: topY });
+    // Left side
+    positions.push({ playerIndex: others[0], x: 10, y: sideY });
+    // Right side
+    positions.push({ playerIndex: others[2], x: svgWidth - 290, y: sideY });
+  } else {
+    // The center table area
+    centerY = 120;
+    const topY = 10;
+
+    if (otherCount === 1) {
+      positions.push({ playerIndex: others[0], x: (svgWidth - 340) / 2, y: topY });
+    } else if (otherCount === 2) {
+      positions.push({ playerIndex: others[0], x: 24, y: topY });
+      positions.push({ playerIndex: others[1], x: svgWidth - 370, y: topY });
+    } else if (otherCount >= 4) {
+      // Distribute evenly
+      const spacing = (svgWidth - 360) / (otherCount - 1);
+      for (let i = 0; i < otherCount; i++) {
+        positions.push({ playerIndex: others[i], x: 24 + i * spacing, y: topY });
+      }
     }
   }
 
   // My hand at the bottom
-  const myY = centerY + centerAreaHeight + 40;
+  const myY = svgHeight - CARD_HEIGHT - ACTION_POPUP_HEIGHT - 40;
   positions.push({ playerIndex: myIndex, x: (svgWidth - 340) / 2, y: myY });
 
   return { positions, centerY, myY };
@@ -190,13 +204,16 @@ export function GameBoard() {
   const canDiscard = view.clueTokens.current < view.clueTokens.max;
   const canHint = view.clueTokens.current > 0;
 
-  const svgWidth = 820;
-  // Calculate height based on layout
   const otherPlayers = view.hands.length - 1;
+  const isCompassLayout = otherPlayers === 3;
+  const svgWidth = isCompassLayout ? 960 : 820;
+  // Calculate height based on layout
   const topSectionHeight = otherPlayers > 0 ? CARD_HEIGHT + HINT_PANEL_HEIGHT + 30 : 0;
   const centerHeight = 110;
   const bottomSectionHeight = CARD_HEIGHT + ACTION_POPUP_HEIGHT + 30;
-  const svgHeight = topSectionHeight + centerHeight + bottomSectionHeight + 30;
+  const baseHeight = topSectionHeight + centerHeight + bottomSectionHeight + 30;
+  // Compass layout needs more vertical space for side players
+  const svgHeight = isCompassLayout ? baseHeight + 140 : baseHeight;
 
   const { positions, centerY } = getTableLayout(view.hands.length, view.myIndex, svgWidth, svgHeight);
 
@@ -206,7 +223,7 @@ export function GameBoard() {
     : t('game.tryAgain');
 
   return (
-    <div className={`game-container ${feedback === 'strike' ? 'feedback-strike' : ''} ${feedback === 'success' ? 'feedback-success' : ''}`} style={{ padding: '16px 12px', maxWidth: 900, margin: '0 auto', animation: 'fadeIn 0.4s ease-out' }}>
+    <div className={`game-container ${feedback === 'strike' ? 'feedback-strike' : ''} ${feedback === 'success' ? 'feedback-success' : ''}`} style={{ padding: '16px 12px', maxWidth: isCompassLayout ? 1000 : 900, margin: '0 auto', animation: 'fadeIn 0.4s ease-out' }}>
       {/* Navigation — always accessible */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <button className="btn btn-dark btn-sm" onClick={reset} style={{ opacity: 0.7, fontSize: 12 }}>
@@ -280,8 +297,8 @@ export function GameBoard() {
         <ellipse
           cx={svgWidth / 2}
           cy={centerY + 50}
-          rx={svgWidth / 2 - 40}
-          ry={55}
+          rx={isCompassLayout ? 180 : svgWidth / 2 - 40}
+          ry={isCompassLayout ? 65 : 55}
           fill="url(#table-center-bg)"
           stroke="rgba(255,255,255,0.04)"
           strokeWidth={1}
