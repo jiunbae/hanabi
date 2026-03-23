@@ -1,5 +1,21 @@
 /* ===== Global ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Fireworks canvas background */
+.fireworks-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Ensure content is above fireworks */
+.lobby, .waiting-room, .game-container, .tutorial-page {
+  position: relative;
+  z-index: 1;
+}
 body {
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   background: #0f0e17;

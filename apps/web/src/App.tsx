@@ -4,14 +4,23 @@ import { LobbyView } from './components/lobby/LobbyView.js';
 import { GameBoard } from './components/game/GameBoard.js';
 import { TutorialView } from './components/TutorialView.js';
 import { LanguageSwitcher } from './components/LanguageSwitcher.js';
+import { FireworksBackground } from './components/FireworksBackground.js';
 
 export function App() {
-  const { screen, error, setError, setScreen } = useGameStore();
+  const { screen, view, error, setError, setScreen } = useGameStore();
   const t = useT();
+
+  // Determine fireworks intensity based on screen context
+  const isGameFinished = screen === 'game' && view?.status === 'finished';
+  const score = view ? Object.values(view.fireworks).reduce((a, b) => a + b, 0) : 0;
+  const fireworksIntensity = isGameFinished && score >= 20 ? 'celebration'
+    : screen === 'lobby' || screen === 'tutorial' ? 'lobby'
+    : 'game';
 
   return (
     <div>
-      {/* Show floating lang switcher only outside lobby (lobby has its own in footer) */}
+      <FireworksBackground intensity={fireworksIntensity} />
+
       {screen !== 'lobby' && <LanguageSwitcher />}
 
       {error && (
