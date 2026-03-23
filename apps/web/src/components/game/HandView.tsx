@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { PlayerViewCard, Color, Rank, GameAction } from '@hanabi/engine';
-import { COLORS, RANKS } from '@hanabi/engine';
+import type { PlayerViewCard, Color, Rank, GameAction } from '@nolbul/engine';
+import { COLORS, RANKS } from '@nolbul/engine';
 import { COLOR_HEX } from '../../lib/colors.js';
 import { useT } from '../../lib/i18n.js';
 import { CardView, CARD_WIDTH, CARD_HEIGHT } from './CardView.js';

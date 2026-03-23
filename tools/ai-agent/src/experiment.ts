@@ -2,7 +2,7 @@
 /**
  * Prompt Experiment Runner
  *
- * Runs full AI-only Hanabi games via the local API using Azure OpenAI (GPT-5-nano),
+ * Runs full AI-only Nolbul games via the local API using Azure OpenAI (GPT-5-nano),
  * testing different system prompts to find one that maximizes score.
  */
 import { readFileSync } from 'fs';
@@ -10,18 +10,18 @@ import { readFileSync } from 'fs';
 // ─── Azure OpenAI Config ───
 const keyFile = JSON.parse(readFileSync(`${process.env.HOME}/keys/openai.azure.com/gpt-5-nano.json`, 'utf-8'));
 const { endpoint, key: apiKey } = keyFile[0];
-const SERVER = process.env.HANABI_SERVER ?? 'http://localhost:3001';
+const SERVER = process.env.NOLBUL_SERVER ?? 'http://localhost:3001';
 
 // ─── Prompt Variants ───
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  follow_recommendation: `You play Hanabi cooperatively. The game state includes a RECOMMENDED action — follow it. Pick one JSON action from the "Available Actions" list. JSON only.`,
+  follow_recommendation: `You play Nolbul cooperatively. The game state includes a RECOMMENDED action — follow it. Pick one JSON action from the "Available Actions" list. JSON only.`,
 
-  smart_picker: `Hanabi AI. Pick the BEST action from "Available Actions" list.
+  smart_picker: `Nolbul AI. Pick the BEST action from "Available Actions" list.
 Priority: Play (if listed) > Hint about playable card > Discard.
 Only actions in the list are valid. JSON only.`,
 
-  DISABLED_hint_first: `You are an expert Hanabi player. COOPERATIVE game — maximize team score.
+  DISABLED_hint_first: `You are an expert Nolbul player. COOPERATIVE game — maximize team score.
 
 ## ABSOLUTE RULE
 You CANNOT see your own cards. Cards with "??" are UNKNOWN to you.
@@ -47,7 +47,7 @@ STEP 3: You must discard. Pick the card with the FEWEST clues (preferably 0 clue
 
 Respond with ONLY the JSON action object.`,
 
-  conservative: `Hanabi AI. Cooperative game. You CANNOT see your own cards ("??" = unknown).
+  conservative: `Nolbul AI. Cooperative game. You CANNOT see your own cards ("??" = unknown).
 
 STRICT RULES:
 1. NEVER play a card that has 0 clues. This is a BLIND play and almost always fails.
@@ -59,7 +59,7 @@ STRICT RULES:
 This order is MANDATORY: Hint > Play (only if certain) > Discard (only if 0 tokens).
 JSON only, no explanation.`,
 
-  numbered_steps: `You play Hanabi cooperatively. You CANNOT see your own cards.
+  numbered_steps: `You play Nolbul cooperatively. You CANNOT see your own cards.
 
 For each turn, follow these numbered steps IN ORDER and stop at the first match:
 
@@ -77,7 +77,7 @@ IMPORTANT: Steps 1-3 should cover 95% of situations. NEVER skip to play without 
 
 JSON action only.`,
 
-  minimal_strict: `Hanabi. Cooperative. You can't see your own cards.
+  minimal_strict: `Nolbul. Cooperative. You can't see your own cards.
 
 RULE: If you don't KNOW what your card is from clues → DON'T play it.
 DEFAULT: Give a hint about a teammate's playable card.
@@ -86,7 +86,7 @@ KNOW YOUR CARD (color+rank clues match next firework): Play it.
 
 JSON only.`,
 
-  hint_only: `You play Hanabi. COOPERATIVE. You CANNOT see your own cards.
+  hint_only: `You play Nolbul. COOPERATIVE. You CANNOT see your own cards.
 
 YOUR STRATEGY IS SIMPLE:
 - ALWAYS give a HINT if you have clue tokens (≥1). Look at your teammate's cards (which you CAN see) and hint about their LOWEST-RANKED playable card.
@@ -99,7 +99,7 @@ YOUR STRATEGY IS SIMPLE:
 
 JSON only.`,
 
-  explicit_example: `Hanabi cooperative game. You can't see your own cards.
+  explicit_example: `Nolbul cooperative game. You can't see your own cards.
 
 DECISION TREE:
 Q1: Do I have a card with both color=X and rank=Y clues, where fireworks[X]+1 == Y?
@@ -261,7 +261,7 @@ async function main() {
   const GAMES_PER_PROMPT = 5;
 
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`HANABI AI PROMPT EXPERIMENT`);
+  console.log(`NOLBUL AI PROMPT EXPERIMENT`);
   console.log(`Players: ${NUM_PLAYERS}, Games per prompt: ${GAMES_PER_PROMPT}`);
   console.log(`LLM: GPT-5-nano (Azure OpenAI)`);
   console.log(`${'='.repeat(60)}\n`);

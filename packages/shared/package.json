@@ -1,5 +1,5 @@
 {
-  "name": "@hanabi/shared",
+  "name": "@nolbul/shared",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -15,6 +15,6 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@hanabi/engine": "workspace:*"
+    "@nolbul/engine": "workspace:*"
   }
 }

@@ -4,9 +4,9 @@ import {
   validateAction,
   getPlayerView,
   getScore,
-} from '@hanabi/engine';
-import type { GameState, GameAction, GameOptions, PlayerView } from '@hanabi/engine';
-import { HanabiError, ErrorCodes } from '@hanabi/shared';
+} from '@nolbul/engine';
+import type { GameState, GameAction, GameOptions, PlayerView } from '@nolbul/engine';
+import { NolbulError, ErrorCodes } from '@nolbul/shared';
 import { db, schema } from '../db/index.js';
 import { eq, and, lt, inArray, desc, isNotNull } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
@@ -116,8 +116,8 @@ class GameManager {
 
   joinGame(gameId: string, playerName: string): { playerIndex: number; apiKey: string } {
     const room = this.getRoom(gameId);
-    if (room.state) throw new HanabiError('Game already started', ErrorCodes.GAME_ALREADY_STARTED);
-    if (room.players.length >= room.options.numPlayers) throw new HanabiError('Game is full', ErrorCodes.GAME_FULL);
+    if (room.state) throw new NolbulError('Game already started', ErrorCodes.GAME_ALREADY_STARTED);
+    if (room.players.length >= room.options.numPlayers) throw new NolbulError('Game is full', ErrorCodes.GAME_FULL);
 
     const apiKey = nanoid(24);
     const playerIndex = room.players.length;
@@ -132,9 +132,9 @@ class GameManager {
   startGame(gameId: string, apiKey: string): PlayerView {
     const room = this.getRoom(gameId);
     const playerIndex = this.authenticatePlayer(room, apiKey);
-    if (playerIndex !== 0) throw new HanabiError('Only the game creator can start the game', ErrorCodes.UNAUTHORIZED, 403);
-    if (room.state) throw new HanabiError('Game already started', ErrorCodes.GAME_ALREADY_STARTED);
-    if (room.players.length < 2) throw new HanabiError('Need at least 2 players', ErrorCodes.INVALID_REQUEST);
+    if (playerIndex !== 0) throw new NolbulError('Only the game creator can start the game', ErrorCodes.UNAUTHORIZED, 403);
+    if (room.state) throw new NolbulError('Game already started', ErrorCodes.GAME_ALREADY_STARTED);
+    if (room.players.length < 2) throw new NolbulError('Need at least 2 players', ErrorCodes.INVALID_REQUEST);
 
     room.state = createInitialState({ ...room.options, numPlayers: room.players.length });
 
@@ -153,7 +153,7 @@ class GameManager {
 
     // Enforce authenticated playerIndex — prevent impersonation
     if (action.playerIndex !== playerIndex) {
-      throw new HanabiError('Action playerIndex does not match authenticated player', ErrorCodes.UNAUTHORIZED, 403);
+      throw new NolbulError('Action playerIndex does not match authenticated player', ErrorCodes.UNAUTHORIZED, 403);
     }
 
     const result = this.executeAction(room, gameId, playerIndex, action);
@@ -177,20 +177,20 @@ class GameManager {
   getGameView(gameId: string, apiKey: string): PlayerView {
     const room = this.getRoom(gameId);
     const playerIndex = this.authenticatePlayer(room, apiKey);
-    if (!room.state) throw new HanabiError('Game not started', ErrorCodes.GAME_NOT_STARTED);
+    if (!room.state) throw new NolbulError('Game not started', ErrorCodes.GAME_NOT_STARTED);
     return getPlayerView(room.state, playerIndex);
   }
 
   getGameViewByIndex(gameId: string, playerIndex: number): PlayerView {
     const room = this.getRoom(gameId);
-    if (!room.state) throw new HanabiError('Game not started', ErrorCodes.GAME_NOT_STARTED);
+    if (!room.state) throw new NolbulError('Game not started', ErrorCodes.GAME_NOT_STARTED);
     return getPlayerView(room.state, playerIndex);
   }
 
   setGameName(gameId: string, gameName: string): void {
     const room = this.getRoom(gameId);
     if (!room.state || room.state.status !== 'finished') {
-      throw new HanabiError('Can only name finished games', ErrorCodes.INVALID_REQUEST);
+      throw new NolbulError('Can only name finished games', ErrorCodes.INVALID_REQUEST);
     }
     db.update(schema.games).set({ gameName }).where(eq(schema.games.id, gameId))
       .catch((e) => console.error('DB update gameName failed:', e));
@@ -231,7 +231,7 @@ class GameManager {
     const room = this.getRoom(gameId);
     this.authenticatePlayer(room, apiKey);
     if (!room.state || room.state.status !== 'finished') {
-      throw new HanabiError('Game not finished', ErrorCodes.INVALID_REQUEST);
+      throw new NolbulError('Game not finished', ErrorCodes.INVALID_REQUEST);
     }
     const { seed: _seed, ...safeOptions } = room.options;
     return { options: safeOptions, actions: [...room.state.actions], score: getScore(room.state.fireworks) };
@@ -239,7 +239,7 @@ class GameManager {
 
   private getRoom(gameId: string): GameRoom {
     const room = this.rooms.get(gameId);
-    if (!room) throw new HanabiError('Game not found', ErrorCodes.GAME_NOT_FOUND, 404);
+    if (!room) throw new NolbulError('Game not found', ErrorCodes.GAME_NOT_FOUND, 404);
     return room;
   }
 
@@ -261,7 +261,7 @@ class GameManager {
   submitActionInternal(gameId: string, playerIndex: number, action: GameAction): { view: PlayerView; finished: boolean } {
     const room = this.getRoom(gameId);
     if (action.playerIndex !== playerIndex) {
-      throw new HanabiError('Action playerIndex mismatch', ErrorCodes.INVALID_ACTION);
+      throw new NolbulError('Action playerIndex mismatch', ErrorCodes.INVALID_ACTION);
     }
     const result = this.executeAction(room, gameId, playerIndex, action);
 
@@ -273,11 +273,11 @@ class GameManager {
 
   /** Shared core: validate, apply, persist action. */
   private executeAction(room: GameRoom, gameId: string, playerIndex: number, action: GameAction): { view: PlayerView; finished: boolean } {
-    if (!room.state) throw new HanabiError('Game not started', ErrorCodes.GAME_NOT_STARTED);
-    if (room.state.status !== 'playing') throw new HanabiError('Game is finished', ErrorCodes.INVALID_ACTION);
+    if (!room.state) throw new NolbulError('Game not started', ErrorCodes.GAME_NOT_STARTED);
+    if (room.state.status !== 'playing') throw new NolbulError('Game is finished', ErrorCodes.INVALID_ACTION);
 
     const error = validateAction(room.state, action);
-    if (error) throw new HanabiError(error.message, ErrorCodes.INVALID_ACTION);
+    if (error) throw new NolbulError(error.message, ErrorCodes.INVALID_ACTION);
 
     room.state = applyAction(room.state, action);
 
@@ -347,7 +347,7 @@ class GameManager {
 
   private authenticatePlayer(room: GameRoom, apiKey: string): number {
     const idx = this.getPlayerIndex(room, apiKey);
-    if (idx === -1) throw new HanabiError('Unauthorized', ErrorCodes.UNAUTHORIZED, 401);
+    if (idx === -1) throw new NolbulError('Unauthorized', ErrorCodes.UNAUTHORIZED, 401);
     return idx;
   }
 

@@ -13,4 +13,4 @@ export type {
   AIContextRequest, AIContextResponse, GameRulesResponse,
 } from './api-types.js';
 
-export { HanabiError, ErrorCodes } from './errors.js';
+export { NolbulError, ErrorCodes } from './errors.js';

@@ -10,7 +10,7 @@ import { COLORS, RANK_COPIES, MAX_CLUE_TOKENS, MAX_STRIKES, MAX_SCORE } from './
 
 // ─── Game Rules (static, comprehensive) ───
 
-export const GAME_RULES = `# Hanabi — Rules
+export const GAME_RULES = `# Nolbul — Rules
 
 ## GOAL
 Build 5 firework displays (red, yellow, green, blue, white), each in order 1→2→3→4→5.

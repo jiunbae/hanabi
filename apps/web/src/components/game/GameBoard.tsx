@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { GameAction, Color, Rank } from '@hanabi/engine';
-import { getScore, COLORS } from '@hanabi/engine';
+import type { GameAction, Color, Rank } from '@nolbul/engine';
+import { getScore, COLORS } from '@nolbul/engine';
 import { useGameStore } from '../../stores/game-store.js';
 import { useWebSocket } from '../../hooks/useWebSocket.js';
 import { useT } from '../../lib/i18n.js';

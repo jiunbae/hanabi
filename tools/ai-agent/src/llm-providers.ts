@@ -5,7 +5,7 @@
  * Each provider takes a game context prompt and returns a JSON action.
  */
 
-import type { GameAction } from './hanabi-client.js';
+import type { GameAction } from './nolbul-client.js';
 
 export interface LLMProvider {
   name: string;
@@ -36,7 +36,7 @@ export class ClaudeProvider implements LLMProvider {
     const response = await client.messages.create({
       model: this.model,
       max_tokens: 1024,
-      system: 'You are an expert Hanabi player. Analyze the game state carefully and choose the optimal action. Respond with ONLY a valid JSON action object, no other text.',
+      system: 'You are an expert Nolbul player. Analyze the game state carefully and choose the optimal action. Respond with ONLY a valid JSON action object, no other text.',
       messages: [{ role: 'user', content: prompt }],
     });
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
@@ -77,7 +77,7 @@ export class OpenAIProvider implements LLMProvider {
       messages: [
         {
           role: 'system',
-          content: 'You are an expert Hanabi player. Analyze the game state carefully and choose the optimal action. Respond with ONLY a valid JSON action object, no other text.',
+          content: 'You are an expert Nolbul player. Analyze the game state carefully and choose the optimal action. Respond with ONLY a valid JSON action object, no other text.',
         },
         { role: 'user', content: prompt },
       ],

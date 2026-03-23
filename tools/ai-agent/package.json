@@ -1,9 +1,9 @@
 {
-  "name": "@hanabi/ai-agent",
+  "name": "@nolbul/ai-agent",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "AI agent runner for Hanabi — connects LLMs (Claude, OpenAI, Gemini) to the game API",
+  "description": "AI agent runner for Nolbul — connects LLMs (Claude, OpenAI, Gemini) to the game API",
   "scripts": {
     "play": "npx tsx src/play.ts",
     "self-play": "npx tsx src/self-play.ts"

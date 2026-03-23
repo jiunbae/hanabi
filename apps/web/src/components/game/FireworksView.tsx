@@ -1,5 +1,5 @@
-import type { Fireworks, Color } from '@hanabi/engine';
-import { COLORS } from '@hanabi/engine';
+import type { Fireworks, Color } from '@nolbul/engine';
+import { COLORS } from '@nolbul/engine';
 import { COLOR_HEX, COLOR_HEX_LIGHT, COLOR_HEX_DARK } from '../../lib/colors.js';
 import { COLOR_SYMBOL } from '../../lib/symbols.js';
 import { useT } from '../../lib/i18n.js';

@@ -1,11 +1,11 @@
 {
-  "name": "hanabi",
+  "name": "nolbul",
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "build": "turbo build",
     "test": "turbo test",
-    "dev": "turbo dev --filter @hanabi/server --filter @hanabi/web",
+    "dev": "turbo dev --filter @nolbul/server --filter @nolbul/web",
     "lint": "turbo lint",
     "clean": "turbo clean",
     "start": "NODE_ENV=production node apps/server/dist/main.js"

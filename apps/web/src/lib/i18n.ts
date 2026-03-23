@@ -5,7 +5,7 @@ export type Locale = 'en' | 'ko';
 const translations = {
   en: {
     // Lobby
-    'app.title': 'Hanabi',
+    'app.title': 'Nolbul',
     'lobby.yourName': 'Your Name',
     'lobby.required': '*',
     'lobby.enterName': 'Enter your name',
@@ -23,16 +23,16 @@ const translations = {
     'lobby.gamesActive': '{n} games active now',
 
     // Hero
-    'hero.tagline': 'The cooperative card game where you play blind',
+    'hero.tagline': 'Play with AI. Test cooperation. Push the score.',
     'hero.createGame': 'Start Playing',
 
     // Features
-    'feature.coop.title': 'Cooperative',
-    'feature.coop.desc': 'Work together — you win or lose as a team',
+    'feature.coop.title': 'AI Cooperation',
+    'feature.coop.desc': 'Team up with AI agents — test how well they cooperate',
     'feature.hidden.title': 'Hidden Information',
     'feature.hidden.desc': 'You can see everyone\'s cards except your own',
     'feature.players.title': '2-5 Players',
-    'feature.players.desc': 'Quick rounds, perfect for friends online',
+    'feature.players.desc': 'Humans, AIs, or both — quick rounds online',
 
     // Footer
     'footer.builtFor': 'Built for fun with friends',
@@ -93,9 +93,9 @@ const translations = {
     'error.dismiss': '(click to dismiss)',
 
     // Tutorial
-    'tutorial.title': 'How to Play Hanabi',
+    'tutorial.title': 'How to Play Nolbul',
     'tutorial.back': 'Back',
-    'tutorial.intro': 'Hanabi is a cooperative card game where you can see everyone\'s cards except your own!',
+    'tutorial.intro': 'Nolbul is a cooperative card game where you can see everyone\'s cards except your own!',
     'tutorial.goal.title': 'Goal',
     'tutorial.goal.text': 'Work together to build 5 firework stacks (one per color), each from 1 to 5, scoring up to 25 points.',
     'tutorial.cards.title': 'Cards',
@@ -144,7 +144,7 @@ const translations = {
   },
   ko: {
     // 로비
-    'app.title': '하나비',
+    'app.title': '놀불',
     'lobby.yourName': '이름',
     'lobby.required': '*',
     'lobby.enterName': '이름을 입력하세요',
@@ -162,16 +162,16 @@ const translations = {
     'lobby.gamesActive': '현재 {n}개 게임 진행 중',
 
     // 히어로
-    'hero.tagline': '보이지 않는 카드로 함께 플레이하는 협동 게임',
+    'hero.tagline': 'AI와 함께 플레이. 협동을 시험하세요.',
     'hero.createGame': '게임 시작하기',
 
     // 특징
-    'feature.coop.title': '협동 게임',
-    'feature.coop.desc': '함께 이기고, 함께 지는 팀 게임',
+    'feature.coop.title': 'AI 협동',
+    'feature.coop.desc': 'AI 에이전트와 팀을 이뤄 협동력을 시험하세요',
     'feature.hidden.title': '숨겨진 정보',
     'feature.hidden.desc': '내 카드만 볼 수 없는 독특한 규칙',
     'feature.players.title': '2-5인',
-    'feature.players.desc': '빠른 라운드, 친구와 온라인으로',
+    'feature.players.desc': '사람, AI, 또는 함께 — 빠른 온라인 라운드',
 
     // 푸터
     'footer.builtFor': '친구와 함께 즐기기 위해 만들어졌습니다',
@@ -232,9 +232,9 @@ const translations = {
     'error.dismiss': '(클릭하여 닫기)',
 
     // 튜토리얼
-    'tutorial.title': '하나비 게임 방법',
+    'tutorial.title': '놀불 게임 방법',
     'tutorial.back': '돌아가기',
-    'tutorial.intro': '하나비는 자신의 카드만 볼 수 없는 협동 카드 게임입니다!',
+    'tutorial.intro': '놀불은 자신의 카드만 볼 수 없는 협동 카드 게임입니다!',
     'tutorial.goal.title': '목표',
     'tutorial.goal.text': '5가지 색상의 불꽃놀이 탑을 1부터 5까지 쌓아 최대 25점을 달성하세요.',
     'tutorial.cards.title': '카드 구성',

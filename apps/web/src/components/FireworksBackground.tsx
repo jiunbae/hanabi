@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { COLOR_HEX } from '../lib/colors.js';
-import type { Color } from '@hanabi/engine';
+import type { Color } from '@nolbul/engine';
 
 const COLORS_ARRAY = Object.values(COLOR_HEX);
 

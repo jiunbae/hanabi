@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * AI Player — Join an existing Hanabi game and play as an AI agent.
+ * AI Player — Join an existing Nolbul game and play as an AI agent.
  *
  * Usage:
  *   # Join an existing game as AI player
@@ -10,16 +10,16 @@
  *   ANTHROPIC_API_KEY=sk-... npx tsx src/play.ts --create --players 2 --provider claude
  *
  * Environment:
- *   HANABI_SERVER_URL  — Game server URL (default: http://localhost:3001)
+ *   NOLBUL_SERVER_URL  — Game server URL (default: http://localhost:3001)
  *   ANTHROPIC_API_KEY  — For Claude provider
  *   OPENAI_API_KEY     — For OpenAI provider
  *   GEMINI_API_KEY     — For Gemini provider
  */
 
-import { HanabiClient, type GameCredentials } from './hanabi-client.js';
+import { NolbulClient, type GameCredentials } from './nolbul-client.js';
 import { ClaudeProvider, OpenAIProvider, GeminiProvider, type LLMProvider } from './llm-providers.js';
 
-const SERVER_URL = process.env.HANABI_SERVER_URL ?? 'http://localhost:3001';
+const SERVER_URL = process.env.NOLBUL_SERVER_URL ?? 'http://localhost:3001';
 const POLL_INTERVAL_MS = 2000;
 const MAX_RETRIES = 3;
 const TURN_DELAY_MS = 500;
@@ -42,7 +42,7 @@ function parseArgs() {
     else if (args[i] === '--name') name = args[++i];
     else if (args[i] === '--help' || args[i] === '-h') {
       console.log(`
-Hanabi AI Player — Join or create a game
+Nolbul AI Player — Join or create a game
 
 Usage: npx tsx src/play.ts [options]
 
@@ -56,7 +56,7 @@ Options:
   --help,     -h  Show this help
 
 Environment Variables:
-  HANABI_SERVER_URL   Game server URL (default: http://localhost:3001)
+  NOLBUL_SERVER_URL   Game server URL (default: http://localhost:3001)
   ANTHROPIC_API_KEY   For Claude provider
   OPENAI_API_KEY      For OpenAI provider
   GEMINI_API_KEY      For Gemini provider
@@ -102,10 +102,10 @@ function sleep(ms: number): Promise<void> {
 
 async function main() {
   const config = parseArgs();
-  const client = new HanabiClient(SERVER_URL);
+  const client = new NolbulClient(SERVER_URL);
   const agent = createProvider(config.provider, config.model);
 
-  console.log(`=== Hanabi AI Player (${agent.name}) ===`);
+  console.log(`=== Nolbul AI Player (${agent.name}) ===`);
   console.log(`Server: ${SERVER_URL}`);
 
   let cred: GameCredentials;

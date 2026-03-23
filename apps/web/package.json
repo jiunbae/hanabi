@@ -1,5 +1,5 @@
 {
-  "name": "@hanabi/web",
+  "name": "@nolbul/web",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -9,8 +9,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@hanabi/engine": "workspace:*",
-    "@hanabi/shared": "workspace:*",
+    "@nolbul/engine": "workspace:*",
+    "@nolbul/shared": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"

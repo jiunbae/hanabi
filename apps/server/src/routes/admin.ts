@@ -4,7 +4,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { gameManager } from '../services/game-manager.js';
 import { aiBotService } from '../services/ai-bot.js';
-import { HanabiError, ErrorCodes } from '@hanabi/shared';
+import { NolbulError, ErrorCodes } from '@nolbul/shared';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROMPTS_PATH = join(__dirname, '..', 'config', 'ai-prompts.json');
@@ -15,11 +15,11 @@ const admin = new Hono();
 admin.use('*', async (c, next) => {
   const adminKey = process.env.ADMIN_KEY;
   if (!adminKey) {
-    throw new HanabiError('Admin panel not configured (set ADMIN_KEY env var)', ErrorCodes.UNAUTHORIZED, 403);
+    throw new NolbulError('Admin panel not configured (set ADMIN_KEY env var)', ErrorCodes.UNAUTHORIZED, 403);
   }
   const provided = c.req.header('x-admin-key');
   if (provided !== adminKey) {
-    throw new HanabiError('Invalid admin key', ErrorCodes.UNAUTHORIZED, 401);
+    throw new NolbulError('Invalid admin key', ErrorCodes.UNAUTHORIZED, 401);
   }
   await next();
 });
@@ -44,7 +44,7 @@ admin.get('/games/:id', (c) => {
       aiPlayers: aiBotService.getAIPlayers(gameId),
     });
   } catch {
-    throw new HanabiError('Game not found', ErrorCodes.GAME_NOT_FOUND, 404);
+    throw new NolbulError('Game not found', ErrorCodes.GAME_NOT_FOUND, 404);
   }
 });
 
@@ -79,7 +79,7 @@ admin.get('/ai-config', (c) => {
 admin.post('/ai-config', async (c) => {
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
-    throw new HanabiError('Invalid request body', ErrorCodes.INVALID_REQUEST);
+    throw new NolbulError('Invalid request body', ErrorCodes.INVALID_REQUEST);
   }
   const { provider, model } = body as { provider?: string; model?: string };
   if (provider && typeof provider === 'string') {
@@ -102,7 +102,7 @@ admin.get('/ai-prompts', (c) => {
 admin.post('/ai-prompts', async (c) => {
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body !== 'object') {
-    throw new HanabiError('Invalid request body', ErrorCodes.INVALID_REQUEST);
+    throw new NolbulError('Invalid request body', ErrorCodes.INVALID_REQUEST);
   }
   try {
     // Merge with existing config
@@ -112,7 +112,7 @@ admin.post('/ai-prompts', async (c) => {
     writeFileSync(PROMPTS_PATH, JSON.stringify(updated, null, 2), 'utf-8');
     return c.json(updated);
   } catch (e) {
-    throw new HanabiError(`Failed to update config: ${(e as Error).message}`, ErrorCodes.INVALID_REQUEST);
+    throw new NolbulError(`Failed to update config: ${(e as Error).message}`, ErrorCodes.INVALID_REQUEST);
   }
 });
 

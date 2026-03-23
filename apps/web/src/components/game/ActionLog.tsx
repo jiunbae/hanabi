@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import type { GameAction } from '@hanabi/engine';
+import type { GameAction } from '@nolbul/engine';
 import { useT } from '../../lib/i18n.js';
 
 interface ActionLogProps {

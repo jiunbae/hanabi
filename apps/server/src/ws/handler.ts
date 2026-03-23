@@ -1,9 +1,9 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'http';
 import { gameManager } from '../services/game-manager.js';
-import { getPlayerView, getScore } from '@hanabi/engine';
-import type { GameState } from '@hanabi/engine';
-import type { ClientMessage, ServerMessage } from '@hanabi/shared';
+import { getPlayerView, getScore } from '@nolbul/engine';
+import type { GameState } from '@nolbul/engine';
+import type { ClientMessage, ServerMessage } from '@nolbul/shared';
 
 const MAX_MESSAGE_SIZE = 4096; // 4KB per message
 const MAX_CONNECTIONS = 200;

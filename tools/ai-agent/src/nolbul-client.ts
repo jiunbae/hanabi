@@ -1,7 +1,7 @@
 /**
- * Hanabi Game API Client
+ * Nolbul Game API Client
  *
- * Simple HTTP client for the Hanabi server REST API.
+ * Simple HTTP client for the Nolbul server REST API.
  */
 
 export interface GameCredentials {
@@ -39,7 +39,7 @@ export interface ActionResponse {
   error?: string;
 }
 
-export class HanabiClient {
+export class NolbulClient {
   constructor(private baseUrl: string) {}
 
   async createGame(numPlayers: number, creatorName: string): Promise<GameCredentials> {

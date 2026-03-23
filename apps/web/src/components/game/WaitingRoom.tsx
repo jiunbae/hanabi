@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useT } from '../../lib/i18n.js';
 import { useGameStore } from '../../stores/game-store.js';
-import { COLORS } from '@hanabi/engine';
+import { COLORS } from '@nolbul/engine';
 import { COLOR_HEX } from '../../lib/colors.js';
 import { COLOR_SYMBOL } from '../../lib/symbols.js';
 import * as api from '../../lib/api.js';
@@ -30,8 +30,8 @@ function FloatingCard({ color, rank, delay, x }: { color: string; rank: number; 
   );
 }
 
-/** Animated hanabi logo with card symbols */
-function HanabiLogo() {
+/** Animated nolbul logo with card symbols */
+function NolbulLogo() {
   return (
     <div className="waiting-logo">
       <div className="waiting-logo-symbols">
@@ -141,7 +141,7 @@ export function WaitingRoom({ gameId, apiKey, isCreator, onStart }: WaitingRoomP
       </button>
 
       {/* Logo */}
-      <HanabiLogo />
+      <NolbulLogo />
 
       <h2 className="waiting-title">{t('waiting.title')}</h2>
 

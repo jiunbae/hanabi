@@ -6,7 +6,7 @@ import type { Server } from 'http';
 const PORT = Number(process.env.PORT) || 3001;
 
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`Hanabi server running at http://localhost:${info.port}`);
+  console.log(`Nolbul server running at http://localhost:${info.port}`);
 });
 
 const wss = setupWebSocket(server as unknown as Server);

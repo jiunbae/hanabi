@@ -17,11 +17,11 @@ on:
 
 env:
   REGISTRY: registry.jiun.dev
-  IMAGE_NAME: hanabi
+  IMAGE_NAME: nolbul
   IAC_REPO: jiunbae/IaC
-  BASE_PATH: kubernetes/base/apps/hanabi
-  DEV_PATH: kubernetes/overlays/dev/hanabi
-  PROD_PATH: kubernetes/overlays/prod/hanabi
+  BASE_PATH: kubernetes/base/apps/nolbul
+  DEV_PATH: kubernetes/overlays/dev/nolbul
+  PROD_PATH: kubernetes/overlays/prod/nolbul
 
 jobs:
   build:
@@ -76,6 +76,6 @@ jobs:
           git config user.name "CI Bot"
           git config user.email "ci@jiun.dev"
           git add ${{ env.BASE_PATH }}/kustomization.yaml ${{ env.DEV_PATH }}/kustomization.yaml ${{ env.PROD_PATH }}/kustomization.yaml
-          git diff --staged --quiet || git commit -m "chore(hanabi): update image to ${{ gitea.sha }}"
+          git diff --staged --quiet || git commit -m "chore(nolbul): update image to ${{ gitea.sha }}"
           git push
 # CI trigger

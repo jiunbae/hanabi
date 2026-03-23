@@ -1,4 +1,4 @@
-import type { ClueTokens, StrikeInfo } from '@hanabi/engine';
+import type { ClueTokens, StrikeInfo } from '@nolbul/engine';
 import { useT } from '../../lib/i18n.js';
 
 interface InfoPanelProps {

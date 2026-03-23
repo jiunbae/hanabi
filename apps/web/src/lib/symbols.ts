@@ -1,4 +1,4 @@
-import type { Color } from '@hanabi/engine';
+import type { Color } from '@nolbul/engine';
 
 /** SVG path symbols for each color — used on cards */
 export const COLOR_SYMBOL: Record<Color, { path: string; viewBox: string }> = {

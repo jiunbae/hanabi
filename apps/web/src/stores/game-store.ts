@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { PlayerView } from '@hanabi/engine';
+import type { PlayerView } from '@nolbul/engine';
 
 export type Screen = 'lobby' | 'game' | 'replay' | 'tutorial' | 'admin';
 

@@ -1,4 +1,4 @@
-import type { Color } from '@hanabi/engine';
+import type { Color } from '@nolbul/engine';
 
 export const COLOR_HEX: Record<Color, string> = {
   red: '#e74c3c',

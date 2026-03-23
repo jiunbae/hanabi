@@ -1,5 +1,5 @@
 {
-  "name": "@hanabi/server",
+  "name": "@nolbul/server",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "@hanabi/engine": "workspace:*",
-    "@hanabi/shared": "workspace:*",
+    "@nolbul/engine": "workspace:*",
+    "@nolbul/shared": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "@libsql/client": "^0.17.0",
     "drizzle-orm": "^0.45.0",

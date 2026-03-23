@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * AI Self-Play — Run a full Hanabi game with LLM agents.
+ * AI Self-Play — Run a full Nolbul game with LLM agents.
  *
  * Usage:
  *   # Claude vs Claude (2 players)
@@ -16,18 +16,18 @@
  *   ANTHROPIC_API_KEY=sk-... OPENAI_API_KEY=sk-... npx tsx src/self-play.ts --provider claude,openai
  *
  * Environment:
- *   HANABI_SERVER_URL  — Game server URL (default: http://localhost:3001)
+ *   NOLBUL_SERVER_URL  — Game server URL (default: http://localhost:3001)
  *   ANTHROPIC_API_KEY  — For Claude provider
  *   OPENAI_API_KEY     — For OpenAI provider
  *   GEMINI_API_KEY     — For Gemini provider
  */
 
-import { HanabiClient, type GameCredentials } from './hanabi-client.js';
+import { NolbulClient, type GameCredentials } from './nolbul-client.js';
 import { ClaudeProvider, OpenAIProvider, GeminiProvider, type LLMProvider } from './llm-providers.js';
 
 // ─── Config ───
 
-const SERVER_URL = process.env.HANABI_SERVER_URL ?? 'http://localhost:3001';
+const SERVER_URL = process.env.NOLBUL_SERVER_URL ?? 'http://localhost:3001';
 const MAX_RETRIES = 3;
 const TURN_DELAY_MS = 1000; // Delay between turns for readability
 
@@ -43,7 +43,7 @@ function parseArgs() {
     else if (args[i] === '--model' || args[i] === '-m') model = args[++i];
     else if (args[i] === '--help' || args[i] === '-h') {
       console.log(`
-Hanabi AI Self-Play
+Nolbul AI Self-Play
 
 Usage: npx tsx src/self-play.ts [options]
 
@@ -54,7 +54,7 @@ Options:
   --help,     -h  Show this help
 
 Environment Variables:
-  HANABI_SERVER_URL   Game server URL (default: http://localhost:3001)
+  NOLBUL_SERVER_URL   Game server URL (default: http://localhost:3001)
   ANTHROPIC_API_KEY   For Claude provider
   OPENAI_API_KEY      For OpenAI provider
   GEMINI_API_KEY      For Gemini provider
@@ -105,13 +105,13 @@ async function main() {
     llmAgents.push(createProvider(providerName, model));
   }
 
-  console.log('=== Hanabi AI Self-Play ===');
+  console.log('=== Nolbul AI Self-Play ===');
   console.log(`Server: ${SERVER_URL}`);
   console.log(`Players: ${numPlayers}`);
   console.log(`Agents: ${llmAgents.map((a, i) => `Player ${i} → ${a.name}`).join(', ')}`);
   console.log('');
 
-  const client = new HanabiClient(SERVER_URL);
+  const client = new NolbulClient(SERVER_URL);
 
   // 1. Create game
   console.log('Creating game...');

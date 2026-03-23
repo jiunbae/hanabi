@@ -1,4 +1,4 @@
-import type { GameAction, PlayerView, GameOptions } from '@hanabi/engine';
+import type { GameAction, PlayerView, GameOptions } from '@nolbul/engine';
 
 // Client → Server messages
 export interface JoinGameMessage {

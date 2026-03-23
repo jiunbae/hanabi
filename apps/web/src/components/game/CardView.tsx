@@ -1,4 +1,4 @@
-import type { PlayerViewCard, Color, Rank } from '@hanabi/engine';
+import type { PlayerViewCard, Color, Rank } from '@nolbul/engine';
 import { COLOR_HEX, COLOR_HEX_LIGHT, COLOR_HEX_DARK } from '../../lib/colors.js';
 import { COLOR_SYMBOL } from '../../lib/symbols.js';
 

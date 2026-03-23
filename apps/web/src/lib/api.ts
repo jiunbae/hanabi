@@ -1,4 +1,4 @@
-import type { GameAction, GameOptions, PlayerView } from '@hanabi/engine';
+import type { GameAction, GameOptions, PlayerView } from '@nolbul/engine';
 
 const API_BASE = '/api';
 

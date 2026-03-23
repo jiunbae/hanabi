@@ -1,4 +1,4 @@
-import type { GameOptions, PlayerView, GameAction } from '@hanabi/engine';
+import type { GameOptions, PlayerView, GameAction } from '@nolbul/engine';
 
 // REST API types
 

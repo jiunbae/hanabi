@@ -1,11 +1,11 @@
 /**
  * AI Bot Service
  *
- * Manages server-side AI players that use LLM APIs to play Hanabi.
+ * Manages server-side AI players that use LLM APIs to play Nolbul.
  * Hooks into GameManager events to auto-play when it's an AI player's turn.
  */
-import { buildAIContext, buildAIContextCompact, getPlayerView } from '@hanabi/engine';
-import type { GameAction, PlayerView } from '@hanabi/engine';
+import { buildAIContext, buildAIContextCompact, getPlayerView } from '@nolbul/engine';
+import type { GameAction, PlayerView } from '@nolbul/engine';
 import { gameManager } from './game-manager.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -31,7 +31,7 @@ function loadPromptConfig(): AIPromptConfig {
     return JSON.parse(readFileSync(configPath, 'utf-8'));
   } catch {
     return {
-      system: { default: 'You play Hanabi cooperatively. Follow the RECOMMENDED ACTION. Respond with ONLY a valid JSON action object.' },
+      system: { default: 'You play Nolbul cooperatively. Follow the RECOMMENDED ACTION. Respond with ONLY a valid JSON action object.' },
       temperature: 0.2,
       maxTokens: 256,
     };

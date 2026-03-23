@@ -1,8 +1,8 @@
 <div align="center">
 
-# 🎆 Hanabi
+# 🎆 Nolbul (놀불)
 
-**A web-based Hanabi board game platform for multi-agent cooperation research**
+**A web-based cooperative card game platform for multi-agent AI cooperation research**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
@@ -17,10 +17,10 @@
 
 ## Quickstart for Agents
 
-<div><img src="https://quickstart-for-agents.vercel.app/api/header.svg?theme=claude-code&title=Set+up+Hanabi+game+server+for+multi-agent+cooperation+research&mascot=thinking" width="100%" /></div>
+<div><img src="https://quickstart-for-agents.vercel.app/api/header.svg?theme=claude-code&title=Set+up+Nolbul+game+server+for+multi-agent+cooperation+research&mascot=thinking" width="100%" /></div>
 
 ```
-Clone and set up the Hanabi web game platform — a cooperative card game environment
+Clone and set up the Nolbul web game platform — a cooperative card game environment
 for AI agent research. Start the server, then use the REST API to create games,
 join as players, and submit actions. Each response includes `legalActions` (all valid
 moves) and `actionHistory` (full game log), so agents don't need to implement rules.
@@ -33,13 +33,13 @@ POST /api/games/:id/start to begin, POST /api/games/:id/actions to play.
 Auth via x-api-key header. See REST API section below for full docs.
 ```
 
-<div><img src="https://quickstart-for-agents.vercel.app/api/footer.svg?theme=claude-code&model=Opus+4.6&project=hanabi" width="100%" /></div>
+<div><img src="https://quickstart-for-agents.vercel.app/api/footer.svg?theme=claude-code&model=Opus+4.6&project=nolbul" width="100%" /></div>
 
 ---
 
 ## Overview
 
-Hanabi is a cooperative card game where players can see everyone's cards **except their own**. This platform provides:
+Nolbul is a cooperative card game platform where players can see everyone's cards **except their own**. This platform provides:
 
 - **Pure TypeScript game engine** — deterministic state machine, fully testable
 - **Real-time multiplayer** — WebSocket-based with automatic reconnection
@@ -47,7 +47,7 @@ Hanabi is a cooperative card game where players can see everyone's cards **excep
 - **Research-ready** — event-sourced action logs, seeded PRNG for reproducibility
 - **Polished UI** — SVG card rendering, animations, i18n (EN/KO)
 
-> Built for the AI research community studying multi-agent cooperation, inspired by benchmarks like [ICLR 2025 Generalist Hanabi Agent](https://arxiv.org/abs/2405.09324).
+> Built for the AI research community studying multi-agent cooperation, inspired by benchmarks like [ICLR 2025 Generalist Agent](https://arxiv.org/abs/2405.09324).
 
 ## Architecture
 
@@ -55,14 +55,14 @@ Hanabi is a cooperative card game where players can see everyone's cards **excep
 ┌─────────────────────────────────────────────────────────┐
 │                       Monorepo                           │
 ├──────────────┬──────────────────────┬───────────────────┤
-│  @hanabi/    │  @hanabi/server      │   @hanabi/web      │
+│  @nolbul/    │  @nolbul/server      │   @nolbul/web      │
 │  engine      │                      │                    │
 │              │  Hono + WebSocket    │   React 19 +       │
 │  Pure TS     │  + SQLite            │   SVG + Zustand    │
 │  state       │  + AI Bot Service    │   + Admin Panel    │
 │  machine     │  (Claude/GPT/Gemini) │   + i18n (EN/KO)   │
 ├──────────────┴──────────────────────┴───────────────────┤
-│                   @hanabi/shared                         │
+│                   @nolbul/shared                         │
 │            WS messages · API types · Errors              │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -97,7 +97,7 @@ pnpm -w start
 
 ## How to Play
 
-Hanabi is a **cooperative** card game for 2-5 players:
+Nolbul is a **cooperative** card game for 2-5 players:
 
 1. **You can't see your own cards** — only other players' cards
 2. **On your turn**, choose one action:
@@ -268,7 +268,7 @@ Admin API endpoints (`x-admin-key` header):
 ```
 hanabi/
 ├── packages/
-│   ├── engine/          # @hanabi/engine — pure game logic
+│   ├── engine/          # @nolbul/engine — pure game logic
 │   │   ├── src/
 │   │   │   ├── types.ts       # All game types
 │   │   │   ├── reducer.ts     # (state, action) => newState
@@ -278,9 +278,9 @@ hanabi/
 │   │   │   ├── ai-context.ts  # LLM prompt builder
 │   │   │   └── ...
 │   │   └── __tests__/         # 32 unit tests
-│   └── shared/          # @hanabi/shared — protocol types
+│   └── shared/          # @nolbul/shared — protocol types
 ├── apps/
-│   ├── server/          # @hanabi/server — Hono API + WebSocket
+│   ├── server/          # @nolbul/server — Hono API + WebSocket
 │   │   └── src/
 │   │       ├── routes/
 │   │       │   ├── games.ts   # Game + AI player endpoints
@@ -289,7 +289,7 @@ hanabi/
 │   │       └── services/
 │   │           ├── game-manager.ts  # Game room lifecycle
 │   │           └── ai-bot.ts        # Server-side AI bot service
-│   └── web/             # @hanabi/web — React frontend
+│   └── web/             # @nolbul/web — React frontend
 │       └── src/
 │           ├── components/
 │           │   ├── game/      # SVG game board
@@ -304,7 +304,7 @@ hanabi/
 │           ├── self-play.ts   # Full AI vs AI games
 │           ├── play.ts        # AI joins human games
 │           ├── llm-providers.ts  # Claude/OpenAI/Gemini
-│           └── hanabi-client.ts  # Game API client
+│           └── nolbul-client.ts  # Game API client
 └── turbo.json           # Monorepo orchestration
 ```
 

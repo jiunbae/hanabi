@@ -1,5 +1,5 @@
 import { useT } from '../lib/i18n.js';
-import { COLORS } from '@hanabi/engine';
+import { COLORS } from '@nolbul/engine';
 import { COLOR_HEX } from '../lib/colors.js';
 import { COLOR_SYMBOL } from '../lib/symbols.js';
 

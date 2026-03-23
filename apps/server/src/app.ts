@@ -4,8 +4,8 @@ import { logger } from 'hono/logger';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { games } from './routes/games.js';
 import { admin } from './routes/admin.js';
-import { HanabiError } from '@hanabi/shared';
-import { GAME_RULES } from '@hanabi/engine';
+import { NolbulError } from '@nolbul/shared';
+import { GAME_RULES } from '@nolbul/engine';
 import { gameManager } from './services/game-manager.js';
 import { register } from './metrics.js';
 
@@ -56,7 +56,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // Error handler
 app.onError((err, c) => {
-  if (err instanceof HanabiError) {
+  if (err instanceof NolbulError) {
     return c.json({ error: err.message, code: err.code }, err.statusCode as 400);
   }
   console.error('Unhandled error:', err);

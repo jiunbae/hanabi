@@ -1,5 +1,5 @@
-import type { Card, Color, Rank, Fireworks } from '@hanabi/engine';
-import { COLORS, RANKS, RANK_COPIES } from '@hanabi/engine';
+import type { Card, Color, Rank, Fireworks } from '@nolbul/engine';
+import { COLORS, RANKS, RANK_COPIES } from '@nolbul/engine';
 import { COLOR_HEX } from '../../lib/colors.js';
 import { useT } from '../../lib/i18n.js';
 

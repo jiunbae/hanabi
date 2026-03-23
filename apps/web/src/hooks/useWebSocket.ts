@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
-import type { ClientMessage, ServerMessage } from '@hanabi/shared';
-import type { GameAction } from '@hanabi/engine';
+import type { ClientMessage, ServerMessage } from '@nolbul/shared';
+import type { GameAction } from '@nolbul/engine';
 import { useGameStore } from '../stores/game-store.js';
 import { useT } from '../lib/i18n.js';
 
