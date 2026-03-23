@@ -1,4 +1,4 @@
-FROM registry.jiun.dev/library/node:22-slim AS base
+FROM node:22-slim AS base
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
@@ -17,7 +17,7 @@ COPY apps/ apps/
 RUN pnpm turbo build
 
 # Production
-FROM registry.jiun.dev/library/node:22-slim
+FROM node:22-slim
 WORKDIR /app
 COPY --from=base /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=base /app/node_modules/ node_modules/
