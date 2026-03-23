@@ -10,7 +10,6 @@ export function App() {
   const { screen, view, error, setError, setScreen } = useGameStore();
   const t = useT();
 
-  // Determine fireworks intensity based on screen context
   const isGameFinished = screen === 'game' && view?.status === 'finished';
   const score = view ? Object.values(view.fireworks).reduce((a, b) => a + b, 0) : 0;
   const fireworksIntensity = isGameFinished && score >= 20 ? 'celebration'
@@ -18,20 +17,24 @@ export function App() {
     : 'game';
 
   return (
-    <div>
+    <>
+      {/* Background layer — always behind */}
       <FireworksBackground intensity={fireworksIntensity} />
 
-      {screen !== 'lobby' && <LanguageSwitcher />}
+      {/* Content layer — always in front */}
+      <div className="app-content">
+        {screen !== 'lobby' && <LanguageSwitcher />}
 
-      {error && (
-        <div className="error-banner" onClick={() => setError(null)}>
-          {error} {t('error.dismiss')}
-        </div>
-      )}
+        {error && (
+          <div className="error-banner" onClick={() => setError(null)}>
+            {error} {t('error.dismiss')}
+          </div>
+        )}
 
-      {screen === 'lobby' && <LobbyView />}
-      {screen === 'game' && <GameBoard />}
-      {screen === 'tutorial' && <TutorialView onBack={() => setScreen('lobby')} />}
-    </div>
+        {screen === 'lobby' && <LobbyView />}
+        {screen === 'game' && <GameBoard />}
+        {screen === 'tutorial' && <TutorialView onBack={() => setScreen('lobby')} />}
+      </div>
+    </>
   );
 }

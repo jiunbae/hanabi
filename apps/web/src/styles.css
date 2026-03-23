@@ -1,18 +1,17 @@
 /* ===== Global ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* Fireworks canvas background */
+/* Fireworks canvas background — always behind all content */
 .fireworks-canvas {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
   z-index: 0;
 }
-/* Ensure content is above fireworks */
-.lobby, .waiting-room, .game-container, .tutorial-page {
+/* All app content stays above the fireworks canvas */
+.app-content {
   position: relative;
   z-index: 1;
 }
