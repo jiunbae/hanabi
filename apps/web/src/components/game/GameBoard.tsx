@@ -149,10 +149,11 @@ export function GameBoard() {
   }, [gameId, apiKey, setAIPlayers]);
 
   // Detect play success/failure by comparing strikes and score changes
+  const currentStrikes = view?.strikes.current ?? null;
+  const currentScore = view ? getScore(view.fireworks) : null;
+
   useEffect(() => {
-    if (!view) return;
-    const currentStrikes = view.strikes.current;
-    const currentScore = getScore(view.fireworks);
+    if (currentStrikes === null || currentScore === null) return;
 
     if (prevStrikesRef.current !== null && currentStrikes > prevStrikesRef.current) {
       setFeedback('strike');
@@ -164,7 +165,7 @@ export function GameBoard() {
 
     prevStrikesRef.current = currentStrikes;
     prevScoreRef.current = currentScore;
-  }, [view?.strikes.current, view && getScore(view.fireworks)]);
+  }, [currentStrikes, currentScore]);
 
   const handleAction = useCallback((action: GameAction) => {
     sendAction(action);

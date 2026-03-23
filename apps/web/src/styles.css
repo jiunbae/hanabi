@@ -956,6 +956,14 @@ select.input {
   padding: 2px 8px;
   border-radius: 6px;
 }
+.slot-ai-badge {
+  font-size: 10px;
+  color: #3498db;
+  font-weight: 700;
+  background: rgba(52, 152, 219, 0.15);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
 .slot-ready-badge {
   font-size: 10px;
   color: #2ecc71;
@@ -1535,5 +1543,112 @@ select.input {
   }
   .active-games-section {
     padding: 0 16px;
+  }
+}
+
+/* ── Admin Panel ── */
+
+.admin-panel {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  color: #e8e8e8;
+}
+.admin-login {
+  max-width: 360px;
+  margin: 80px auto;
+  text-align: center;
+}
+.admin-login h2 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.admin-stat-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+.admin-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+}
+.admin-stat-label {
+  font-size: 11px;
+  color: #889;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.admin-config {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+.admin-config h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+.admin-config-status {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.admin-config-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.admin-config-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #889;
+}
+.admin-config-form select.input,
+.admin-config-form input.input {
+  min-width: 140px;
+}
+.admin-table-wrap {
+  overflow-x: auto;
+}
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.admin-table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: #889;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.admin-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.admin-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+@media (max-width: 600px) {
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .admin-config-form {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

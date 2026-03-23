@@ -10,6 +10,7 @@ import { gameManager } from './game-manager.js';
 
 const AI_TURN_DELAY_MS = 1500;
 const MAX_RETRIES = 3;
+const MAX_CONSECUTIVE_AI_TURNS = 50; // Circuit breaker for all-AI games
 
 // ─── LLM Provider Interface ───
 
@@ -107,28 +108,49 @@ function parseActionFromLLM(text: string): GameAction {
   const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (codeBlockMatch) cleaned = codeBlockMatch[1].trim();
 
-  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  // Non-greedy match to avoid capturing beyond the first JSON object
+  const jsonMatch = cleaned.match(/\{[\s\S]*?\}/);
   if (!jsonMatch) throw new Error(`No JSON found in LLM response: ${text.slice(0, 200)}`);
 
-  const action = JSON.parse(jsonMatch[0]);
-  if (!action.type || !['play', 'discard', 'hint'].includes(action.type)) {
-    throw new Error(`Invalid action type: ${action.type}`);
+  const raw = JSON.parse(jsonMatch[0]);
+  if (!raw.type || !['play', 'discard', 'hint'].includes(raw.type)) {
+    throw new Error(`Invalid action type: ${raw.type}`);
   }
-  if (typeof action.playerIndex !== 'number') {
+  if (typeof raw.playerIndex !== 'number') {
     throw new Error('Missing playerIndex');
   }
-  return action as GameAction;
+
+  // Sanitize: only pick known fields to prevent extra property injection
+  const base = { type: raw.type as string, playerIndex: raw.playerIndex as number };
+  if (base.type === 'play' || base.type === 'discard') {
+    if (typeof raw.cardIndex !== 'number' || raw.cardIndex < 0) {
+      throw new Error(`Invalid cardIndex: ${raw.cardIndex}`);
+    }
+    return { ...base, cardIndex: raw.cardIndex } as GameAction;
+  }
+  if (base.type === 'hint') {
+    if (typeof raw.targetIndex !== 'number') throw new Error('Missing targetIndex');
+    if (!raw.hint || !raw.hint.type || !raw.hint.value) throw new Error('Missing hint details');
+    return {
+      ...base,
+      targetIndex: raw.targetIndex,
+      hint: { type: raw.hint.type, value: raw.hint.value },
+    } as GameAction;
+  }
+  return base as GameAction;
 }
 
 // ─── AI Bot Service ───
 
 class AIBotService {
-  /** gameId → Map<playerIndex, apiKey> */
-  private aiPlayers = new Map<string, Map<number, string>>();
+  /** gameId → Set of AI player indices */
+  private aiPlayers = new Map<string, Set<number>>();
   private provider: LLMProvider | null = null;
   private providerName: string;
   private modelName: string;
   private turnInProgress = new Set<string>(); // gameId keys to prevent duplicate triggers
+  private consecutiveTurns = new Map<string, number>(); // circuit breaker per game
+  private cancelledGames = new Set<string>(); // games that should stop AI turns
 
   constructor() {
     this.providerName = process.env.AI_PROVIDER ?? 'claude';
@@ -171,17 +193,24 @@ class AIBotService {
   }
 
   private registerHooks(): void {
+    gameManager.onGameEvicted((gameId) => this.removeGame(gameId));
+
     gameManager.onGameStarted((gameId, state) => {
-      // Check if the first player is AI
+      this.consecutiveTurns.set(gameId, 0);
       this.maybePlayTurn(gameId, state.currentPlayer);
     });
 
     gameManager.onGameAction((gameId, state) => {
       if (state.status !== 'playing') {
-        this.turnInProgress.delete(gameId);
+        this.removeGame(gameId);
         return;
       }
-      // After any action, check if the next player is AI
+
+      // Track consecutive AI turns; reset when human plays
+      if (!this.isAIPlayer(gameId, state.currentPlayer)) {
+        this.consecutiveTurns.set(gameId, 0);
+      }
+
       this.maybePlayTurn(gameId, state.currentPlayer);
     });
   }
@@ -221,28 +250,45 @@ class AIBotService {
     }
 
     const aiName = `AI-${this.provider!.name}`;
-    const { playerIndex, apiKey } = gameManager.joinGame(gameId, aiName);
+    const { playerIndex } = gameManager.joinGame(gameId, aiName);
 
     if (!this.aiPlayers.has(gameId)) {
-      this.aiPlayers.set(gameId, new Map());
+      this.aiPlayers.set(gameId, new Set());
     }
-    this.aiPlayers.get(gameId)!.set(playerIndex, apiKey);
+    this.aiPlayers.get(gameId)!.add(playerIndex);
 
     return { playerIndex, name: aiName };
   }
 
+  /** Clean up AI state for a game. Called on eviction and game finish. */
   removeGame(gameId: string): void {
     this.aiPlayers.delete(gameId);
     this.turnInProgress.delete(gameId);
+    this.consecutiveTurns.delete(gameId);
+    this.cancelledGames.add(gameId); // cancel any in-flight setTimeout
+    // Allow GC of cancelled set entry after delay
+    setTimeout(() => this.cancelledGames.delete(gameId), AI_TURN_DELAY_MS * 2);
   }
 
   private maybePlayTurn(gameId: string, playerIndex: number): void {
     if (!this.isAIPlayer(gameId, playerIndex)) return;
     if (this.turnInProgress.has(gameId)) return;
+    if (this.cancelledGames.has(gameId)) return;
+
+    // Circuit breaker: stop after too many consecutive AI turns
+    const consecutive = (this.consecutiveTurns.get(gameId) ?? 0) + 1;
+    if (consecutive > MAX_CONSECUTIVE_AI_TURNS) {
+      console.warn(`AI Bot circuit breaker: ${consecutive} consecutive turns in game ${gameId}, stopping`);
+      return;
+    }
+    this.consecutiveTurns.set(gameId, consecutive);
 
     this.turnInProgress.add(gameId);
-    // Delay for natural pacing and to avoid blocking
     setTimeout(() => {
+      if (this.cancelledGames.has(gameId)) {
+        this.turnInProgress.delete(gameId);
+        return;
+      }
       this.playTurn(gameId, playerIndex).catch((err) => {
         console.error(`AI Bot turn failed [game=${gameId}, player=${playerIndex}]:`, err);
       }).finally(() => {
@@ -281,7 +327,7 @@ class AIBotService {
       } catch (err) {
         console.error(`AI Bot attempt ${attempt}/${MAX_RETRIES} failed:`, (err as Error).message);
         if (attempt === MAX_RETRIES) {
-          action = view.legalActions[0] as GameAction;
+          action = { ...view.legalActions[0] };
           console.log(`AI Bot fallback to first legal action: ${JSON.stringify(action)}`);
         }
       }
@@ -298,7 +344,7 @@ class AIBotService {
       const fallback = view.legalActions[0];
       if (fallback) {
         try {
-          gameManager.submitActionInternal(gameId, playerIndex, fallback as GameAction);
+          gameManager.submitActionInternal(gameId, playerIndex, { ...fallback });
         } catch (e2) {
           console.error(`AI Bot fallback also failed:`, (e2 as Error).message);
         }

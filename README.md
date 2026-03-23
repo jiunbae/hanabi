@@ -52,19 +52,19 @@ Hanabi is a cooperative card game where players can see everyone's cards **excep
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                   Monorepo                       │
-├──────────────┬──────────────┬───────────────────┤
-│  @hanabi/    │  @hanabi/    │   @hanabi/         │
-│  engine      │  server      │   web              │
-│              │              │                    │
-│  Pure TS     │  Hono +      │   React 19 +       │
-│  state       │  WebSocket   │   SVG + Zustand    │
-│  machine     │  + SQLite    │   + i18n (EN/KO)   │
-├──────────────┴──────────────┴───────────────────┤
-│              @hanabi/shared                      │
-│         WS messages · API types · Errors         │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                       Monorepo                           │
+├──────────────┬──────────────────────┬───────────────────┤
+│  @hanabi/    │  @hanabi/server      │   @hanabi/web      │
+│  engine      │                      │                    │
+│              │  Hono + WebSocket    │   React 19 +       │
+│  Pure TS     │  + SQLite            │   SVG + Zustand    │
+│  state       │  + AI Bot Service    │   + Admin Panel    │
+│  machine     │  (Claude/GPT/Gemini) │   + i18n (EN/KO)   │
+├──────────────┴──────────────────────┴───────────────────┤
+│                   @hanabi/shared                         │
+│            WS messages · API types · Errors              │
+└─────────────────────────────────────────────────────────┘
 ```
 
 | Layer | Tech | Purpose |
@@ -182,6 +182,87 @@ curl -X POST http://localhost:3001/api/games/{id}/actions \
 - **actionHistory** — full action log in every response for context-aware decision making
 - **Seeded PRNG** — server generates seeds for reproducible games (seeds never exposed to clients)
 
+## AI Agent Integration
+
+### LLM-Optimized API
+
+The server provides endpoints specifically designed for LLM-based agents:
+
+```bash
+# Get game rules + action format reference
+curl http://localhost:3001/api/rules
+
+# Get LLM-optimized game context (includes rules, state, legal actions as structured text)
+curl http://localhost:3001/api/games/{id}/ai-context \
+  -H 'x-api-key: YOUR_KEY'
+
+# Compact version (no rules, for subsequent turns)
+curl 'http://localhost:3001/api/games/{id}/ai-context?includeRules=false' \
+  -H 'x-api-key: YOUR_KEY'
+```
+
+The `/ai-context` endpoint returns a `prompt` field containing a complete, structured text that any LLM can consume to make decisions — including game rules, visible cards, clue history, critical cards analysis, and all legal actions with their JSON format.
+
+### AI Agent Runner (CLI)
+
+Standalone scripts in `tools/ai-agent/` for running AI games without the web UI:
+
+```bash
+cd tools/ai-agent && npm install
+
+# AI self-play (all seats played by LLMs)
+ANTHROPIC_API_KEY=sk-... npx tsx src/self-play.ts --provider claude --players 2
+
+# GPT-4o self-play
+OPENAI_API_KEY=sk-... npx tsx src/self-play.ts --provider openai --players 3
+
+# Gemini self-play
+GEMINI_API_KEY=... npx tsx src/self-play.ts --provider gemini --players 2
+
+# Mixed providers (Claude vs OpenAI)
+ANTHROPIC_API_KEY=sk-... OPENAI_API_KEY=sk-... npx tsx src/self-play.ts --provider claude,openai
+
+# AI joins an existing game (works alongside web UI players)
+ANTHROPIC_API_KEY=sk-... npx tsx src/play.ts --game <gameId> --provider claude
+
+# AI creates a game and waits for humans to join via web UI
+ANTHROPIC_API_KEY=sk-... npx tsx src/play.ts --create --players 2 --provider claude
+```
+
+### In-Game AI Players
+
+Play with AI teammates directly from the web UI — no CLI needed:
+
+1. Configure the server with an LLM API key:
+   ```bash
+   # Add to your environment or .env file
+   ANTHROPIC_API_KEY=sk-...   # or OPENAI_API_KEY / GEMINI_API_KEY
+   AI_PROVIDER=claude         # claude | openai | gemini (auto-detects if omitted)
+   AI_MODEL=                  # optional model override
+   ```
+
+2. Create a game in the web UI
+3. In the Waiting Room, click **"Add AI Player"** to fill empty seats with AI bots
+4. Start the game — AI players will automatically take their turns
+
+The AI bot service runs server-side, uses `buildAIContext()` to generate prompts, and submits actions via the game engine with natural pacing (1.5s delay between turns).
+
+### Admin Panel
+
+Monitor games and configure AI from the web UI:
+
+1. Set an admin key: `ADMIN_KEY=your-secret-key`
+2. Click the **"Admin"** link in the lobby footer
+3. Enter your admin key to access:
+   - **Stats dashboard** — total/active/finished games, average scores
+   - **Games table** — real-time list of all games with players, AI status, scores
+   - **AI configuration** — change provider/model at runtime
+
+Admin API endpoints (`x-admin-key` header):
+- `GET /api/admin/stats` — aggregate statistics
+- `GET /api/admin/games` — detailed game list
+- `GET/POST /api/admin/ai-config` — read/update AI settings
+
 ## Project Structure
 
 ```
@@ -194,21 +275,36 @@ hanabi/
 │   │   │   ├── validators.ts  # Action validation
 │   │   │   ├── views.ts       # PlayerView (information hiding)
 │   │   │   ├── selectors.ts   # Legal actions computation
+│   │   │   ├── ai-context.ts  # LLM prompt builder
 │   │   │   └── ...
 │   │   └── __tests__/         # 32 unit tests
 │   └── shared/          # @hanabi/shared — protocol types
 ├── apps/
 │   ├── server/          # @hanabi/server — Hono API + WebSocket
 │   │   └── src/
-│   │       ├── routes/        # REST endpoints
+│   │       ├── routes/
+│   │       │   ├── games.ts   # Game + AI player endpoints
+│   │       │   └── admin.ts   # Admin panel endpoints
 │   │       ├── ws/            # WebSocket handler
-│   │       └── services/      # GameManager
+│   │       └── services/
+│   │           ├── game-manager.ts  # Game room lifecycle
+│   │           └── ai-bot.ts        # Server-side AI bot service
 │   └── web/             # @hanabi/web — React frontend
 │       └── src/
-│           ├── components/    # SVG game components
+│           ├── components/
+│           │   ├── game/      # SVG game board
+│           │   ├── lobby/     # Game creation/joining
+│           │   └── admin/     # Admin panel
 │           ├── hooks/         # useWebSocket
 │           ├── stores/        # Zustand state
-│           └── lib/           # i18n, colors, symbols
+│           └── lib/           # i18n, API client, colors
+├── tools/
+│   └── ai-agent/        # Standalone AI agent CLI runner
+│       └── src/
+│           ├── self-play.ts   # Full AI vs AI games
+│           ├── play.ts        # AI joins human games
+│           ├── llm-providers.ts  # Claude/OpenAI/Gemini
+│           └── hanabi-client.ts  # Game API client
 └── turbo.json           # Monorepo orchestration
 ```
 

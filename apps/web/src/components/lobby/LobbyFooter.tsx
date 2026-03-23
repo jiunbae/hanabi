@@ -35,6 +35,14 @@ export function LobbyFooter() {
         </a>
         <span className="footer-separator">|</span>
         <span className="footer-text">{t('footer.builtFor')}</span>
+        <span className="footer-separator">|</span>
+        <button
+          className="footer-link"
+          onClick={() => setScreen('admin')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, fontSize: 12 }}
+        >
+          {t('footer.admin')}
+        </button>
       </div>
     </footer>
   );
