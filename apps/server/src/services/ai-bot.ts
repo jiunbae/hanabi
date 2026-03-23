@@ -10,6 +10,7 @@ import { gameManager } from './game-manager.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { llmCallsTotal, llmCallDurationSeconds, llmFallbacksTotal, aiTurnsTotal } from '../metrics.js';
 
 const AI_TURN_DELAY_MS = 1500;
 const MAX_RETRIES = 3;
@@ -449,7 +450,10 @@ class AIBotService {
     const smartAction = this.getSmartAction(view, playerIndex);
 
     // Try LLM to potentially improve on the smart action
+    const providerLabel = this.providerName;
+    const modelLabel = this.modelName || this.provider.name;
     let action: GameAction = smartAction;
+    const stopTimer = llmCallDurationSeconds.startTimer({ model: modelLabel, provider: providerLabel });
     try {
       const llmAction = await this.provider.generateAction(prompt);
       const sanitized = { ...llmAction, playerIndex };
@@ -457,15 +461,24 @@ class AIBotService {
       // Only accept LLM's choice if it's safe (no blind plays)
       if (this.isSafeAction(sanitized as GameAction, view, playerIndex)) {
         action = sanitized as GameAction;
+        stopTimer();
+        llmCallsTotal.inc({ model: modelLabel, provider: providerLabel, status: 'success' });
       } else {
+        stopTimer();
+        llmCallsTotal.inc({ model: modelLabel, provider: providerLabel, status: 'unsafe_rejected' });
+        llmFallbacksTotal.inc({ provider: providerLabel, reason: 'unsafe' });
         console.log(`AI Bot: LLM suggested unsafe play, using smart action`);
       }
     } catch (err) {
+      stopTimer();
+      llmCallsTotal.inc({ model: modelLabel, provider: providerLabel, status: 'error' });
+      llmFallbacksTotal.inc({ provider: providerLabel, reason: 'error' });
       console.log(`AI Bot: LLM failed (${(err as Error).message.slice(0, 80)}), using smart action`);
     }
 
     try {
       gameManager.submitActionInternal(gameId, playerIndex, action);
+      aiTurnsTotal.inc({ action_type: action.type });
       console.log(`AI Bot [game=${gameId}, player=${playerIndex}]: ${action.type}`);
     } catch (err) {
       console.error(`AI Bot action rejected:`, (err as Error).message);

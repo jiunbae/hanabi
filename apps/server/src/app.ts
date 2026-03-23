@@ -7,6 +7,7 @@ import { admin } from './routes/admin.js';
 import { HanabiError } from '@hanabi/shared';
 import { GAME_RULES } from '@hanabi/engine';
 import { gameManager } from './services/game-manager.js';
+import { register } from './metrics.js';
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'];
 
@@ -20,6 +21,12 @@ app.use('/api/*', cors({
 }));
 
 app.get('/health', (c) => c.json({ status: 'ok' }));
+
+// Prometheus metrics endpoint
+app.get('/metrics', async (c) => {
+  const metrics = await register.metrics();
+  return c.text(metrics, 200, { 'Content-Type': register.contentType });
+});
 
 app.route('/api/games', games);
 app.route('/api/admin', admin);
