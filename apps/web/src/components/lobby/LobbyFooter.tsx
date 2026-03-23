@@ -23,7 +23,7 @@ export function LobbyFooter() {
       </div>
       <div className="footer-links">
         <a
-          href="https://github.com/peterjiun/hanabi"
+          href="https://github.com/jiunbae/nolbul"
           target="_blank"
           rel="noopener noreferrer"
           className="footer-link"
@@ -44,6 +44,7 @@ export function LobbyFooter() {
           {t('footer.admin')}
         </button>
       </div>
+      <div className="footer-disclaimer">{t('footer.disclaimer')}</div>
     </footer>
   );
 }

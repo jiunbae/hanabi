@@ -23,19 +23,21 @@ const translations = {
     'lobby.gamesActive': '{n} games active now',
 
     // Hero
-    'hero.tagline': 'Play with AI. Test cooperation. Push the score.',
+    'hero.tagline': 'An AI cooperation research platform',
+    'hero.subtitle': 'Test how well AI agents cooperate in a hidden-information card game',
     'hero.createGame': 'Start Playing',
 
     // Features
     'feature.coop.title': 'AI Cooperation',
-    'feature.coop.desc': 'Team up with AI agents — test how well they cooperate',
+    'feature.coop.desc': 'Team up with AI agents — benchmark human-AI teamwork',
     'feature.hidden.title': 'Hidden Information',
-    'feature.hidden.desc': 'You can see everyone\'s cards except your own',
+    'feature.hidden.desc': 'You can see everyone\'s cards except your own — a classic AI challenge',
     'feature.players.title': '2-5 Players',
-    'feature.players.desc': 'Humans, AIs, or both — quick rounds online',
+    'feature.players.desc': 'Humans, AIs, or both — test different team compositions',
 
     // Footer
-    'footer.builtFor': 'Built for fun with friends',
+    'footer.builtFor': 'Built for AI cooperation research',
+    'footer.disclaimer': 'This is an original implementation inspired by cooperative fireworks card games. Not affiliated with any existing game or publisher.',
 
     // Waiting Room
     'waiting.title': 'Waiting Room',
@@ -162,19 +164,21 @@ const translations = {
     'lobby.gamesActive': '현재 {n}개 게임 진행 중',
 
     // 히어로
-    'hero.tagline': 'AI와 함께 플레이. 협동을 시험하세요.',
+    'hero.tagline': 'AI 협동 연구 플랫폼',
+    'hero.subtitle': '숨겨진 정보 카드 게임에서 AI 에이전트의 협동 능력을 시험하세요',
     'hero.createGame': '게임 시작하기',
 
     // 특징
     'feature.coop.title': 'AI 협동',
-    'feature.coop.desc': 'AI 에이전트와 팀을 이뤄 협동력을 시험하세요',
+    'feature.coop.desc': 'AI 에이전트와 팀을 이뤄 인간-AI 협동력을 벤치마크',
     'feature.hidden.title': '숨겨진 정보',
-    'feature.hidden.desc': '내 카드만 볼 수 없는 독특한 규칙',
+    'feature.hidden.desc': '내 카드만 볼 수 없는 규칙 — AI 연구의 핵심 과제',
     'feature.players.title': '2-5인',
-    'feature.players.desc': '사람, AI, 또는 함께 — 빠른 온라인 라운드',
+    'feature.players.desc': '사람, AI, 또는 함께 — 다양한 팀 구성 테스트',
 
     // 푸터
-    'footer.builtFor': '친구와 함께 즐기기 위해 만들어졌습니다',
+    'footer.builtFor': 'AI 협동 연구를 위해 만들어졌습니다',
+    'footer.disclaimer': '협동 불꽃놀이 카드 게임에서 영감을 받은 독자적 구현입니다. 기존 게임이나 퍼블리셔와 관련이 없습니다.',
 
     // 대기실
     'waiting.title': '대기실',

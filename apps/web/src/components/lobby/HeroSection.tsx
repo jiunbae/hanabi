@@ -74,6 +74,7 @@ export function HeroSection({ onCreateClick }: HeroSectionProps) {
       {/* Title */}
       <h1 className="hero-title">{t('app.title')}</h1>
       <p className="hero-tagline">{t('hero.tagline')}</p>
+      <p className="hero-subtitle">{t('hero.subtitle')}</p>
 
       {/* Primary CTA */}
       <button className="btn hero-cta" onClick={onCreateClick}>
