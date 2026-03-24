@@ -299,9 +299,8 @@ export function GameBoard() {
 
       <svg
         className="game-svg"
-        width={svgWidth}
-        height={svgHeight}
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        style={{ width: '100%', maxWidth: svgWidth, height: 'auto' }}
       >
         <defs>
           {/* Board background gradient */}

@@ -48,7 +48,11 @@ export function LobbyView() {
   };
 
   const handleJoin = async (gameId: string) => {
-    if (!name.trim()) { setError(t('lobby.nameRequired')); return; }
+    if (!name.trim()) {
+      setError(t('lobby.nameRequired'));
+      scrollToActions();
+      return;
+    }
     setPlayerName(name);
     try {
       const result = await api.joinGame(gameId, name);

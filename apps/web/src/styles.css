@@ -309,6 +309,7 @@ select.input {
 
 .game-container {
   position: relative;
+  overflow-x: hidden;
 }
 
 /* Play feedback overlays */
@@ -1582,6 +1583,70 @@ select.input {
   }
   .active-games-section {
     padding: 0 16px;
+  }
+  /* Game board mobile */
+  .game-container {
+    padding: 8px 4px !important;
+  }
+  .game-svg {
+    border-radius: 8px;
+  }
+  .info-panel {
+    font-size: 11px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .game-bottom-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .game-bottom-row .action-log-body {
+    max-height: 120px;
+  }
+  .discard-grid-cell {
+    width: 18px;
+    height: 18px;
+    font-size: 9px;
+  }
+  .discard-grid-header {
+    font-size: 9px;
+  }
+  .discard-grid-color {
+    width: 12px;
+    height: 12px;
+  }
+  .action-log-entry {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  .action-log-toggle {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+  .score-breakdown {
+    gap: 6px;
+  }
+  .game-over {
+    padding: 20px 16px;
+  }
+  .game-over-title {
+    font-size: 24px;
+  }
+  .game-over-score {
+    font-size: 18px;
+  }
+  .waiting-room {
+    padding: 20px 12px;
+  }
+  .waiting-player-slot {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .leaderboard-section {
+    padding: 0 12px;
+  }
+  .ad-slot-game {
+    padding: 2px 0;
   }
 }
 
