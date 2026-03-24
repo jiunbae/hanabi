@@ -41,6 +41,69 @@ class GameManager {
 
   constructor() {
     setInterval(() => this.evictStaleGames(), EVICTION_INTERVAL_MS);
+    this.restoreActiveGames().catch((e) => console.error('Game restore failed:', e));
+  }
+
+  /** Restore in-progress games from DB on startup (action replay) */
+  private async restoreActiveGames(): Promise<void> {
+    const activeGamesRows = await db.select()
+      .from(schema.games)
+      .where(eq(schema.games.status, 'playing'));
+
+    if (activeGamesRows.length === 0) return;
+
+    let restored = 0;
+    for (const game of activeGamesRows) {
+      try {
+        const options: GameOptions = JSON.parse(game.options);
+        const playerRows = await db.select()
+          .from(schema.players)
+          .where(eq(schema.players.gameId, game.id));
+        const actionRows = await db.select()
+          .from(schema.actionLogs)
+          .where(eq(schema.actionLogs.gameId, game.id));
+
+        // Sort actions by turnIndex
+        actionRows.sort((a, b) => a.turnIndex - b.turnIndex);
+
+        // Reconstruct state: create initial state with seed, then replay actions
+        const state = createInitialState({ ...options, numPlayers: playerRows.length });
+        for (const row of actionRows) {
+          const action: GameAction = JSON.parse(row.action);
+          applyAction(state, action);
+        }
+
+        // Skip if game finished during replay (stale DB status)
+        if (state.status === 'finished') {
+          await db.update(schema.games)
+            .set({ status: 'finished', score: getScore(state.fireworks), finishedAt: new Date().toISOString() })
+            .where(eq(schema.games.id, game.id));
+          continue;
+        }
+
+        // Rebuild GameRoom
+        const players = playerRows
+          .sort((a, b) => a.playerIndex - b.playerIndex)
+          .map(p => ({ name: p.name, apiKey: p.apiKey }));
+
+        const room: GameRoom = {
+          id: game.id,
+          state,
+          options,
+          players,
+          createdAt: game.createdAt,
+        };
+        this.rooms.set(game.id, room);
+        activeGames.inc();
+        restored++;
+      } catch (e) {
+        console.error(`Failed to restore game ${game.id}:`, e);
+      }
+    }
+
+    if (restored > 0) {
+      console.log(`Restored ${restored} active game(s) from DB`);
+    }
   }
 
   private evictStaleGames(): void {
