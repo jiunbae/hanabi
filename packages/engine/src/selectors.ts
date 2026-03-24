@@ -22,33 +22,29 @@ export function getLegalActions(state: GameState): GameAction[] {
   }
 
   // Hint actions - only if clue tokens available
+  // All color/rank hints are legal (including empty hints that touch no cards)
   if (state.clueTokens.current > 0) {
     for (let target = 0; target < state.hands.length; target++) {
       if (target === player) continue;
-      const targetHand = state.hands[target];
 
-      // Color hints
+      // Color hints (all 5 colors)
       for (const color of COLORS) {
-        if (targetHand.cards.some((c) => c.color === color)) {
-          actions.push({
-            type: 'hint',
-            playerIndex: player,
-            targetIndex: target,
-            hint: { type: 'color', value: color },
-          });
-        }
+        actions.push({
+          type: 'hint',
+          playerIndex: player,
+          targetIndex: target,
+          hint: { type: 'color', value: color },
+        });
       }
 
-      // Rank hints
+      // Rank hints (all 5 ranks)
       for (const rank of RANKS) {
-        if (targetHand.cards.some((c) => c.rank === rank)) {
-          actions.push({
-            type: 'hint',
-            playerIndex: player,
-            targetIndex: target,
-            hint: { type: 'rank', value: rank },
-          });
-        }
+        actions.push({
+          type: 'hint',
+          playerIndex: player,
+          targetIndex: target,
+          hint: { type: 'rank', value: rank },
+        });
       }
     }
   }

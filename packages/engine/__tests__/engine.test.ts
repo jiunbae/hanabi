@@ -217,7 +217,7 @@ describe('Actions - Hint', () => {
     expect(error!.message).toContain('No clue tokens');
   });
 
-  it('rejects hint that touches no cards', () => {
+  it('allows empty hints (touching no cards)', () => {
     const state = createInitialState({ numPlayers: 2, seed: 42 });
     const targetHand = state.hands[1];
 
@@ -226,9 +226,9 @@ describe('Actions - Hint', () => {
     const missingColor = COLORS.find((c) => !colorsInHand.has(c));
     if (!missingColor) return; // all colors present, skip
 
+    // Empty hints are now allowed — they convey "you don't have this"
     const error = validateAction(state, giveColorHint(0, 1, missingColor));
-    expect(error).not.toBeNull();
-    expect(error!.message).toContain('at least one card');
+    expect(error).toBeNull();
   });
 });
 

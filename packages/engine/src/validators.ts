@@ -70,14 +70,7 @@ function validateHint(
     return { message: `Invalid rank: ${hint.value}` };
   }
 
-  // Check that the hint touches at least one card
-  const targetHand = state.hands[targetIndex];
-  const touches = targetHand.cards.some((card) =>
-    hint.type === 'color' ? card.color === hint.value : card.rank === hint.value
-  );
-  if (!touches) {
-    return { message: 'Hint must touch at least one card' };
-  }
-
+  // Empty hints (touching no cards) are allowed — they convey information
+  // by telling a player what they DON'T have.
   return null;
 }

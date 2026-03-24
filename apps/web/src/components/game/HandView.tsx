@@ -97,9 +97,9 @@ export function HandView({
     onHoverHint?.(null);
   };
 
-  // Available colors/ranks for hints (only those that touch at least one card)
-  const availableColors = COLORS.filter((c) => cards.some((card) => card.color === c));
-  const availableRanks = RANKS.filter((r) => cards.some((card) => card.rank === r));
+  // Track which hints touch at least one card (for visual distinction)
+  const touchesColor = (c: Color) => cards.some((card) => card.color === c);
+  const touchesRank = (r: Rank) => cards.some((card) => card.rank === r);
 
   return (
     <g transform={`translate(${x}, ${y})`}>
@@ -243,7 +243,7 @@ export function HandView({
           <rect
             x={-6}
             y={-4}
-            width={Math.max(handWidth + 12, availableColors.length * 38 + 8, availableRanks.length * 32 + 8)}
+            width={Math.max(handWidth + 12, COLORS.length * 38 + 8, RANKS.length * 32 + 8)}
             height={HINT_PANEL_HEIGHT}
             rx={8}
             fill="rgba(22, 33, 62, 0.95)"
@@ -252,8 +252,9 @@ export function HandView({
             className="hint-panel-bg"
           />
 
-          {/* Color hint buttons */}
-          {availableColors.map((color, i) => {
+          {/* Color hint buttons — all 5 colors, empty hints grayed out */}
+          {COLORS.map((color, i) => {
+            const touches = touchesColor(color);
             const textFill = color === 'yellow' || color === 'white' ? '#222' : '#fff';
             return (
               <g
@@ -262,32 +263,45 @@ export function HandView({
                 onClick={(e) => { e.stopPropagation(); handleHint({ type: 'color', value: color }); }}
                 onMouseEnter={() => onHoverHint?.({ type: 'color', value: color })}
                 onMouseLeave={() => onHoverHint?.(null)}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: 'pointer', opacity: touches ? 1 : 0.3 }}
               >
-                <rect x={i * 36} y={0} width={32} height={22} rx={5} fill={COLOR_HEX[color]} className="popup-btn-rect" />
-                <text x={i * 36 + 16} y={15} textAnchor="middle" fontSize={9} fontWeight="700" fill={textFill}>
+                <rect x={i * 36} y={0} width={32} height={22} rx={5}
+                  fill={touches ? COLOR_HEX[color] : '#333'}
+                  stroke={!touches ? '#555' : 'none'}
+                  strokeWidth={!touches ? 0.5 : 0}
+                  className="popup-btn-rect" />
+                <text x={i * 36 + 16} y={15} textAnchor="middle" fontSize={9} fontWeight="700"
+                  fill={touches ? textFill : '#777'}>
                   {color.slice(0, 1).toUpperCase()}
                 </text>
               </g>
             );
           })}
 
-          {/* Rank hint buttons */}
-          {availableRanks.map((rank, i) => (
-            <g
-              key={rank}
-              className="popup-action-btn"
-              onClick={(e) => { e.stopPropagation(); handleHint({ type: 'rank', value: rank }); }}
-              onMouseEnter={() => onHoverHint?.({ type: 'rank', value: rank })}
-              onMouseLeave={() => onHoverHint?.(null)}
-              style={{ cursor: 'pointer' }}
-            >
-              <rect x={i * 30} y={26} width={26} height={22} rx={5} fill="#555" className="popup-btn-rect" />
-              <text x={i * 30 + 13} y={41} textAnchor="middle" fontSize={11} fontWeight="700" fill="#eee">
-                {rank}
-              </text>
-            </g>
-          ))}
+          {/* Rank hint buttons — all 5 ranks, empty hints grayed out */}
+          {RANKS.map((rank, i) => {
+            const touches = touchesRank(rank);
+            return (
+              <g
+                key={rank}
+                className="popup-action-btn"
+                onClick={(e) => { e.stopPropagation(); handleHint({ type: 'rank', value: rank }); }}
+                onMouseEnter={() => onHoverHint?.({ type: 'rank', value: rank })}
+                onMouseLeave={() => onHoverHint?.(null)}
+                style={{ cursor: 'pointer', opacity: touches ? 1 : 0.3 }}
+              >
+                <rect x={i * 30} y={26} width={26} height={22} rx={5}
+                  fill={touches ? '#555' : '#222'}
+                  stroke={!touches ? '#444' : 'none'}
+                  strokeWidth={!touches ? 0.5 : 0}
+                  className="popup-btn-rect" />
+                <text x={i * 30 + 13} y={41} textAnchor="middle" fontSize={11} fontWeight="700"
+                  fill={touches ? '#eee' : '#666'}>
+                  {rank}
+                </text>
+              </g>
+            );
+          })}
         </g>
       )}
     </g>
