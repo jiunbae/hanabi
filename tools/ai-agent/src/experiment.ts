@@ -8,8 +8,13 @@
 import { readFileSync } from 'fs';
 
 // ─── Azure OpenAI Config ───
-const keyFile = JSON.parse(readFileSync(`${process.env.HOME}/keys/openai.azure.com/gpt-5-nano.json`, 'utf-8'));
-const { endpoint, key: apiKey } = keyFile[0];
+const modelArg = process.argv.find((_, i, a) => a[i - 1] === '--model') ?? 'gpt-5-nano';
+const keyFile = JSON.parse(readFileSync(`${process.env.HOME}/keys/openai.azure.com/${modelArg}.json`, 'utf-8'));
+const keyEntry = keyFile[0];
+const apiKey = keyEntry.key;
+// Build chat completions endpoint from deployment name
+const AZURE_BASE = 'https://ai-azureai228776228205.cognitiveservices.azure.com';
+const endpoint = `${AZURE_BASE}/openai/deployments/${keyEntry.deployment}/chat/completions?api-version=2025-01-01-preview`;
 const SERVER = process.env.NOLBUL_SERVER ?? 'http://localhost:3001';
 
 // ─── Prompt Variants ───
@@ -391,7 +396,7 @@ async function main() {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`NOLBUL AI PROMPT EXPERIMENT`);
   console.log(`Players: ${NUM_PLAYERS}, Games per prompt: ${GAMES_PER_PROMPT}, Mode: ${mode}`);
-  console.log(`LLM: GPT-5-nano (Azure OpenAI)`);
+  console.log(`LLM: ${modelArg} (Azure OpenAI)`);
   console.log(`${'='.repeat(60)}\n`);
 
   type Result = { name: string; scores: number[]; avg: number; strikes: number[] };
@@ -421,17 +426,24 @@ async function main() {
     console.log(`  → Average: ${avg.toFixed(1)}/25, Avg strikes: ${avgStrikes.toFixed(1)}`);
   }
 
+  // Select which prompts to test
+  const promptArg = process.argv.find((_, i, a) => a[i - 1] === '--prompts');
+  const selectedPrompts = promptArg
+    ? promptArg.split(',')
+    : Object.keys(SYSTEM_PROMPTS).filter(k => !k.startsWith('DISABLED'));
+
   // 1-step baselines
   if (mode !== '2step') {
-    for (const [name, prompt] of Object.entries(SYSTEM_PROMPTS).filter(([k]) => !k.startsWith('DISABLED'))) {
-      await bench(name, prompt, runGame);
+    for (const name of selectedPrompts) {
+      if (SYSTEM_PROMPTS[name]) {
+        await bench(name, SYSTEM_PROMPTS[name], runGame);
+      }
     }
   }
 
-  // 2-step variants (test with top prompts)
+  // 2-step variants
   if (mode !== '1step') {
-    const twoStepPrompts = ['follow_recommendation', 'numbered_steps', 'minimal_strict'];
-    for (const name of twoStepPrompts) {
+    for (const name of selectedPrompts) {
       if (SYSTEM_PROMPTS[name]) {
         await bench(`2step_${name}`, SYSTEM_PROMPTS[name], runGame2Step);
       }
