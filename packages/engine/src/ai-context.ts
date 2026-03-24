@@ -95,21 +95,52 @@ function formatDiscardPile(pile: readonly Card[]): string {
 function formatAction(action: GameAction, playerNames?: string[], view?: PlayerView): string {
   const name = (i: number) => playerNames?.[i] ?? `Player ${i}`;
   switch (action.type) {
-    case 'play':
-      return `${name(action.playerIndex)} played card at index ${action.cardIndex}`;
-    case 'discard':
-      return `${name(action.playerIndex)} discarded card at index ${action.cardIndex}`;
+    case 'play': {
+      let detail = `${name(action.playerIndex)} played card at index [${action.cardIndex}]`;
+      // If we can see the result (other player's play shows the card in discard or fireworks)
+      if (view && action.playerIndex !== view.myIndex) {
+        // Card was played — check fireworks change or discard pile
+        // We can't reconstruct exactly, but we note it was another player's visible action
+        detail += ` (visible to you)`;
+      }
+      return detail;
+    }
+    case 'discard': {
+      let detail = `${name(action.playerIndex)} discarded card at index [${action.cardIndex}]`;
+      if (view && action.playerIndex !== view.myIndex) {
+        detail += ` (visible to you)`;
+      }
+      return detail;
+    }
     case 'hint': {
-      const base = `${name(action.playerIndex)} hinted ${name(action.targetIndex)}: ${action.hint.type}=${action.hint.value}`;
-      // Check if this was an empty hint (no cards touched) — only if view is available
+      const hintDesc = `${action.hint.type}=${action.hint.value}`;
+      let detail = `${name(action.playerIndex)} hinted ${name(action.targetIndex)}: ${hintDesc}`;
+
       if (view) {
         const targetHand = view.hands[action.targetIndex];
-        const touched = targetHand?.cards.some(card =>
-          card.clues.some(c => c.type === action.hint.type && c.value === action.hint.value)
-        );
-        if (targetHand && !touched) return `${base} (EMPTY — no cards match)`;
+        if (targetHand) {
+          // Find which card positions are touched by this hint
+          const touchedPositions: number[] = [];
+          for (let idx = 0; idx < targetHand.cards.length; idx++) {
+            const card = targetHand.cards[idx];
+            const hasThisClue = card.clues.some(
+              c => c.type === action.hint.type && c.value === action.hint.value
+            );
+            if (hasThisClue) touchedPositions.push(idx);
+          }
+
+          if (touchedPositions.length === 0) {
+            detail += ` → EMPTY (no cards match — "${action.hint.value}" is NOT in their hand)`;
+          } else {
+            detail += ` → touched cards at positions [${touchedPositions.join(', ')}]`;
+            // If this hint was directed at me, add what I now know
+            if (action.targetIndex === view.myIndex) {
+              detail += ` (YOUR cards — you now know ${touchedPositions.length === 1 ? 'this card' : 'these cards'} ${action.hint.type === 'color' ? 'is' : 'are'} ${action.hint.value})`;
+            }
+          }
+        }
       }
-      return base;
+      return detail;
     }
   }
 }
@@ -361,6 +392,7 @@ export function buildAIContextCompact(view: PlayerView, options: AIContextOption
 function extractHintsToMe(view: PlayerView, playerNames?: string[]): string[] {
   const name = (i: number) => playerNames?.[i] ?? `Player ${i}`;
   const myIdx = view.myIndex;
+  const myHand = view.hands[myIdx];
   const lines: string[] = [];
 
   for (let i = 0; i < view.actionHistory.length; i++) {
@@ -371,7 +403,27 @@ function extractHintsToMe(view: PlayerView, playerNames?: string[]): string[] {
       const hintDesc = action.hint.type === 'color'
         ? `color=${action.hint.value}`
         : `rank=${action.hint.value}`;
-      lines.push(`  Turn ${turnNum}: ${hinter} hinted YOU about ${hintDesc}`);
+
+      // Find which of my cards were touched by this hint
+      const touchedPositions: number[] = [];
+      for (let idx = 0; idx < myHand.cards.length; idx++) {
+        const hasClue = myHand.cards[idx].clues.some(
+          c => c.type === action.hint.type && c.value === action.hint.value && c.giverIndex === action.playerIndex
+        );
+        if (hasClue) touchedPositions.push(idx);
+      }
+
+      if (touchedPositions.length === 0) {
+        lines.push(`  Turn ${turnNum}: ${hinter} hinted YOU about ${hintDesc} → EMPTY (none of your cards match — you do NOT have ${action.hint.value})`);
+      } else {
+        // Show what I now know about each touched card
+        const cardDetails = touchedPositions.map(idx => {
+          const card = myHand.cards[idx];
+          const allClues = card.clues.map(c => `${c.type}=${c.value}`).join(', ');
+          return `[${idx}](${allClues})`;
+        }).join(', ');
+        lines.push(`  Turn ${turnNum}: ${hinter} hinted YOU about ${hintDesc} → touched cards: ${cardDetails}`);
+      }
     }
   }
 
