@@ -92,23 +92,68 @@ function formatDiscardPile(pile: readonly Card[]): string {
     .join(', ');
 }
 
-function formatAction(action: GameAction, playerNames?: string[]): string {
+function formatAction(action: GameAction, playerNames?: string[], view?: PlayerView): string {
   const name = (i: number) => playerNames?.[i] ?? `Player ${i}`;
   switch (action.type) {
     case 'play':
       return `${name(action.playerIndex)} played card at index ${action.cardIndex}`;
     case 'discard':
       return `${name(action.playerIndex)} discarded card at index ${action.cardIndex}`;
-    case 'hint':
-      return `${name(action.playerIndex)} hinted ${name(action.targetIndex)}: ${action.hint.type}=${action.hint.value}`;
+    case 'hint': {
+      const base = `${name(action.playerIndex)} hinted ${name(action.targetIndex)}: ${action.hint.type}=${action.hint.value}`;
+      // Check if this was an empty hint (no cards touched) — only if view is available
+      if (view) {
+        const targetHand = view.hands[action.targetIndex];
+        const touched = targetHand?.cards.some(card =>
+          card.clues.some(c => c.type === action.hint.type && c.value === action.hint.value)
+        );
+        if (targetHand && !touched) return `${base} (EMPTY — no cards match)`;
+      }
+      return base;
+    }
   }
 }
 
 // ─── Smart Analysis ───
 
+/** Detect empty hints (negative information) from action history */
+function getNegativeInfo(view: PlayerView): { colors: Set<string>; ranks: Set<number> } {
+  const negColors = new Set<string>();
+  const negRanks = new Set<number>();
+  const myIdx = view.myIndex;
+
+  for (const action of view.actionHistory) {
+    if (action.type !== 'hint' || action.targetIndex !== myIdx) continue;
+    // Check if this hint touched any of my cards (by looking at clues)
+    const myHand = view.hands[myIdx];
+    const touched = myHand.cards.some(card =>
+      card.clues.some(c =>
+        c.type === action.hint.type &&
+        c.value === action.hint.value &&
+        c.giverIndex === action.playerIndex
+      )
+    );
+    if (!touched) {
+      // Empty hint — this color/rank is NOT in my hand
+      if (action.hint.type === 'color') negColors.add(action.hint.value as string);
+      else negRanks.add(action.hint.value as number);
+    }
+  }
+  return { colors: negColors, ranks: negRanks };
+}
+
 function analyzeOwnHand(view: PlayerView): string {
   const hand = view.hands[view.myIndex];
+  const negative = getNegativeInfo(view);
   const lines: string[] = [];
+
+  // Show negative information first
+  if (negative.colors.size > 0 || negative.ranks.size > 0) {
+    const parts: string[] = [];
+    if (negative.colors.size > 0) parts.push(`NOT colors: ${[...negative.colors].join(', ')}`);
+    if (negative.ranks.size > 0) parts.push(`NOT ranks: ${[...negative.ranks].join(', ')}`);
+    lines.push(`  [NEGATIVE INFO from empty hints] ${parts.join(' | ')}`);
+  }
 
   for (let idx = 0; idx < hand.cards.length; idx++) {
     const clues = hand.cards[idx].clues;
@@ -271,7 +316,7 @@ Score: ${score}/${MAX_SCORE} | Clue tokens: ${view.clueTokens.current}/${view.cl
   const recent = view.actionHistory.slice(-recentActionsLimit);
   if (recent.length > 0) {
     sections.push(`## Recent actions\n${recent.map(
-      (a, i) => `  ${view.actionHistory.length - recent.length + i + 1}. ${formatAction(a, playerNames)}`
+      (a, i) => `  ${view.actionHistory.length - recent.length + i + 1}. ${formatAction(a, playerNames, view)}`
     ).join('\n')}`);
   }
 
@@ -384,7 +429,7 @@ ${hints.join('\n')}`);
   if (recent.length > 0) {
     sections.push(`## Recent Game Actions (for context)
 ${recent.map(
-      (a, i) => `  ${view.actionHistory.length - recent.length + i + 1}. ${formatAction(a, playerNames)}`
+      (a, i) => `  ${view.actionHistory.length - recent.length + i + 1}. ${formatAction(a, playerNames, view)}`
     ).join('\n')}`);
   }
 
