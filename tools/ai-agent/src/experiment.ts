@@ -403,23 +403,18 @@ async function main() {
   const results: Result[] = [];
 
   async function bench(name: string, prompt: string, runner: (p: string, n: number) => Promise<{ score: number; turns: number; strikes: number; actions: string[] }>) {
-    console.log(`\n--- Testing: ${name} ---`);
-    const scores: number[] = [];
-    const strikes: number[] = [];
+    console.log(`\n--- Testing: ${name} (${GAMES_PER_PROMPT} games in parallel) ---`);
 
-    for (let i = 0; i < GAMES_PER_PROMPT; i++) {
-      try {
-        const result = await runner(prompt, NUM_PLAYERS);
-        scores.push(result.score);
-        strikes.push(result.strikes);
-        console.log(`  Game ${i + 1}: Score ${result.score}/25, Strikes ${result.strikes}, Turns ${result.turns}`);
-      } catch (e) {
-        console.error(`  Game ${i + 1}: FAILED — ${(e as Error).message}`);
-        scores.push(0);
-        strikes.push(3);
-      }
-    }
+    const gameResults = await Promise.all(
+      Array.from({ length: GAMES_PER_PROMPT }, (_, i) =>
+        runner(prompt, NUM_PLAYERS)
+          .then(r => { console.log(`  Game ${i + 1}: Score ${r.score}/25, Strikes ${r.strikes}, Turns ${r.turns}`); return r; })
+          .catch(e => { console.error(`  Game ${i + 1}: FAILED — ${(e as Error).message}`); return { score: 0, turns: 0, strikes: 3, actions: [] }; })
+      )
+    );
 
+    const scores = gameResults.map(r => r.score);
+    const strikes = gameResults.map(r => r.strikes);
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
     const avgStrikes = strikes.reduce((a, b) => a + b, 0) / strikes.length;
     results.push({ name, scores, avg, strikes });
