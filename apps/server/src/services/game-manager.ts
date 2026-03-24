@@ -8,6 +8,7 @@ import {
 import type { GameState, GameAction, GameOptions, PlayerView } from '@nolbul/engine';
 import { NolbulError, ErrorCodes } from '@nolbul/shared';
 import { db, schema } from '../db/index.js';
+import { gamesTotal, activeGames } from '../metrics.js';
 import { eq, and, lt, inArray, desc, isNotNull } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
@@ -137,6 +138,9 @@ class GameManager {
     if (room.players.length < 2) throw new NolbulError('Need at least 2 players', ErrorCodes.INVALID_REQUEST);
 
     room.state = createInitialState({ ...room.options, numPlayers: room.players.length });
+
+    gamesTotal.inc({ status: 'started' });
+    activeGames.inc();
 
     db.update(schema.games).set({ status: 'playing' }).where(eq(schema.games.id, gameId))
       .catch((e) => console.error('DB update game status failed:', e));
@@ -290,6 +294,8 @@ class GameManager {
 
     const finished = room.state.status === 'finished';
     if (finished) {
+      gamesTotal.inc({ status: 'finished' });
+      activeGames.dec();
       this.finishedAt.set(gameId, Date.now());
       db.update(schema.games)
         .set({ status: 'finished', score: getScore(room.state.fireworks), finishedAt: new Date().toISOString() })
