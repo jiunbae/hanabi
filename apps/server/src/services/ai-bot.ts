@@ -466,16 +466,35 @@ class AIBotService {
     return colorsNeedingRank >= Math.ceil(colorsTotal / 2);
   }
 
-  /** Compute strategic action using H-Group conventions */
+  /** Count playable cards in a teammate's hand that they already know about */
+  private countKnownPlayables(hand: PlayerView['hands'][0], fw: Record<string, number>): number {
+    let count = 0;
+    for (const card of hand.cards) {
+      if (!card.color || !card.rank) continue;
+      if (!this.isPlayable(fw, card.color, card.rank)) continue;
+      const knowsColor = card.clues.some(c => c.type === 'color' && c.value === card.color);
+      const knowsRank = card.clues.some(c => c.type === 'rank' && c.value === card.rank);
+      if (knowsColor && knowsRank) count++;
+      // If they know rank and it's unambiguous (only 1 color needs it), also counts
+      else if (knowsRank) {
+        const colorsNeeding = Object.entries(fw).filter(([_, v]) => v + 1 === card.rank).length;
+        if (colorsNeeding === 1) count++;
+      }
+    }
+    return count;
+  }
+
+  /** Compute strategic action using H-Group conventions (v2 — balanced play/hint/discard) */
   private getSmartAction(view: PlayerView, playerIndex: number): GameAction {
     const myHand = view.hands[playerIndex];
     const fw = this.fw(view);
     const clueTokens = view.clueTokens.current;
+    const maxTokens = view.clueTokens.max;
 
     // ════════════════════════════════════════════
-    // PRIORITY 1: Play known-playable cards
+    // PRIORITY 1: Play known-playable cards (ALWAYS first)
     // ════════════════════════════════════════════
-    // 1a. Fully known (color + rank)
+    // 1a. Fully known (color + rank) — certain play
     for (let idx = 0; idx < myHand.cards.length; idx++) {
       const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
       if (color && rank && this.isPlayable(fw, color, rank)) {
@@ -483,8 +502,24 @@ class AIBotService {
       }
     }
 
-    // 1b. Rank-only clue: play if it's rank 1 and any color needs it,
-    //     or if most colors need that rank (high probability play)
+    // 1b. Color-only play: if I know the color and only 1 rank is needed for that color
+    for (let idx = 0; idx < myHand.cards.length; idx++) {
+      const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
+      if (color && !rank) {
+        const needed = fw[color] + 1;
+        if (needed <= 5) {
+          // Recently received hint about this color — likely a play signal
+          const recentHint = myHand.cards[idx].clues.find(
+            c => c.type === 'color' && c.turnGiven >= view.turn - 2
+          );
+          if (recentHint) {
+            return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
+          }
+        }
+      }
+    }
+
+    // 1c. Rank-only play: rank 1 (always playable somewhere) or most colors need it
     for (let idx = 0; idx < myHand.cards.length; idx++) {
       const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
       if (!color && rank && this.isRankOnlyPlayable(fw, rank)) {
@@ -493,7 +528,19 @@ class AIBotService {
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 2: Save critical cards on teammates' chops
+    // PRIORITY 2: Discard known-useless cards (free tempo — no token cost)
+    // ════════════════════════════════════════════
+    if (clueTokens < maxTokens) {
+      for (let idx = 0; idx < myHand.cards.length; idx++) {
+        const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
+        if (color && rank && this.isUseless(fw, color, rank)) {
+          return { type: 'discard', playerIndex, cardIndex: idx } as GameAction;
+        }
+      }
+    }
+
+    // ════════════════════════════════════════════
+    // PRIORITY 3: Save critical cards on teammates' chops (URGENT)
     // ════════════════════════════════════════════
     if (clueTokens > 0) {
       for (let i = 0; i < view.hands.length; i++) {
@@ -502,11 +549,9 @@ class AIBotService {
         const chopIdx = this.getChopIndex(hand);
         const chopCard = hand.cards[chopIdx];
         if (chopCard?.color && chopCard?.rank) {
-          // Save 5s on chop (always critical)
           if (chopCard.rank === 5 && !chopCard.clues.some(c => c.type === 'rank' && c.value === 5)) {
             return { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'rank', value: 5 } } as GameAction;
           }
-          // Save other critical cards on chop
           if (this.isCritical(view, chopCard.color, chopCard.rank) &&
               !this.isUseless(fw, chopCard.color, chopCard.rank) &&
               chopCard.clues.length === 0) {
@@ -517,10 +562,9 @@ class AIBotService {
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 3: Give play clues for teammates' playable cards
+    // PRIORITY 4: Hint about playable cards (only if teammate doesn't already know)
     // ════════════════════════════════════════════
     if (clueTokens > 0) {
-      // 3a. Hint about immediately playable cards (prefer cards closer to chop)
       let bestHint: GameAction | null = null;
       let bestScore = -1;
 
@@ -528,57 +572,61 @@ class AIBotService {
         if (i === playerIndex) continue;
         const hand = view.hands[i];
 
+        // Skip if teammate already has known playable cards (let them play first)
+        if (this.countKnownPlayables(hand, fw) > 0) continue;
+
         for (let cardIdx = 0; cardIdx < hand.cards.length; cardIdx++) {
           const card = hand.cards[cardIdx];
           if (!card.color || !card.rank) continue;
           if (!this.isPlayable(fw, card.color, card.rank)) continue;
 
-          const alreadyKnowsColor = card.clues.some(c => c.type === 'color' && c.value === card.color);
-          const alreadyKnowsRank = card.clues.some(c => c.type === 'rank' && c.value === card.rank);
-          if (alreadyKnowsColor && alreadyKnowsRank) continue; // already knows
+          const knowsColor = card.clues.some(c => c.type === 'color' && c.value === card.color);
+          const knowsRank = card.clues.some(c => c.type === 'rank' && c.value === card.rank);
+          if (knowsColor && knowsRank) continue;
 
-          // Score: prefer lower ranks (1s first), prefer cards the player doesn't know about
-          const score = (6 - card.rank) * 10 + (alreadyKnowsRank ? 0 : 5) + (alreadyKnowsColor ? 0 : 3);
-
+          // Score: prefer lower ranks, prefer giving the missing piece of info
+          const score = (6 - card.rank) * 10 + (knowsRank ? 0 : 5) + (knowsColor ? 0 : 3);
           if (score > bestScore) {
             bestScore = score;
-            // Prefer rank hints (more informative in general)
-            if (!alreadyKnowsRank) {
-              bestHint = { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'rank', value: card.rank } } as GameAction;
-            } else {
-              bestHint = { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'color', value: card.color } } as GameAction;
-            }
+            bestHint = !knowsRank
+              ? { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'rank', value: card.rank } } as GameAction
+              : { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'color', value: card.color } } as GameAction;
           }
         }
       }
-
       if (bestHint) return bestHint;
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 4: Discard useless known cards
+    // PRIORITY 5: Strategic discard (free up hand space + gain token)
     // ════════════════════════════════════════════
-    for (let idx = 0; idx < myHand.cards.length; idx++) {
-      const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
-      if (color && rank && this.isUseless(fw, color, rank)) {
-        const discards = view.legalActions.filter(a => a.type === 'discard');
-        if (discards.some(d => d.cardIndex === idx)) {
-          return { type: 'discard', playerIndex, cardIndex: idx } as GameAction;
+    // Discard if: tokens low (≤ 3), or no useful hints available, or hand is full of unknowns
+    const shouldDiscard = clueTokens <= 3 || clueTokens < maxTokens;
+    if (shouldDiscard) {
+      const discards = view.legalActions.filter(a => a.type === 'discard');
+      if (discards.length > 0) {
+        const chopIdx = this.getChopIndex(myHand);
+        if (myHand.cards[chopIdx].clues.length === 0) {
+          return { type: 'discard', playerIndex, cardIndex: chopIdx } as GameAction;
+        }
+        // Find any unclued card
+        for (let idx = myHand.cards.length - 1; idx >= 0; idx--) {
+          if (myHand.cards[idx].clues.length === 0) {
+            return { type: 'discard', playerIndex, cardIndex: idx } as GameAction;
+          }
         }
       }
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 5: Give future-useful hints (if tokens available)
+    // PRIORITY 6: Future hints (only if tokens are plentiful ≥ 5)
     // ════════════════════════════════════════════
-    if (clueTokens >= 2) {
-      // Hint about cards that will be playable soon (next needed rank)
+    if (clueTokens >= 5) {
       for (let i = 0; i < view.hands.length; i++) {
         if (i === playerIndex) continue;
         for (const card of view.hands[i].cards) {
           if (!card.color || !card.rank) continue;
           const needed = fw[card.color] + 1;
-          // Card is 1 step away from being playable
           if (card.rank === needed + 1 && card.clues.length === 0) {
             return { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'rank', value: card.rank } } as GameAction;
           }
@@ -587,33 +635,18 @@ class AIBotService {
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 6: Discard chop (oldest unclued card)
+    // PRIORITY 7: Discard chop as last resort
     // ════════════════════════════════════════════
-    const discards = view.legalActions.filter(a => a.type === 'discard');
-    if (discards.length > 0) {
+    const discards2 = view.legalActions.filter(a => a.type === 'discard');
+    if (discards2.length > 0) {
       const chopIdx = this.getChopIndex(myHand);
-      // Verify chop card is not critical before discarding
-      // (We can't see our own cards, but avoid discarding clued cards)
-      if (myHand.cards[chopIdx].clues.length === 0) {
-        return { type: 'discard', playerIndex, cardIndex: chopIdx } as GameAction;
-      }
-      // Discard rightmost unclued
-      for (let idx = myHand.cards.length - 1; idx >= 0; idx--) {
-        if (myHand.cards[idx].clues.length === 0) {
-          return { type: 'discard', playerIndex, cardIndex: idx } as GameAction;
-        }
-      }
-      // All cards clued — discard the one least likely to be useful
-      return { type: 'discard', playerIndex, cardIndex: myHand.cards.length - 1 } as GameAction;
+      return { type: 'discard', playerIndex, cardIndex: chopIdx } as GameAction;
     }
 
-    // ════════════════════════════════════════════
-    // PRIORITY 7: Give any legal hint (when no discard available = tokens full)
-    // ════════════════════════════════════════════
+    // PRIORITY 8: Any legal hint (tokens full, can't discard)
     const hints = view.legalActions.filter(a => a.type === 'hint');
     if (hints.length > 0) return { ...hints[0] } as GameAction;
 
-    // Absolute fallback
     return { ...view.legalActions[0] } as GameAction;
   }
 
@@ -621,16 +654,27 @@ class AIBotService {
   private isSafeAction(action: GameAction, view: PlayerView, playerIndex: number): boolean {
     if (action.type !== 'play') return true;
 
-    const cardClues = view.hands[playerIndex].cards[action.cardIndex]?.clues ?? [];
+    const card = view.hands[playerIndex].cards[action.cardIndex];
+    if (!card) return false;
+    const cardClues = card.clues ?? [];
     const knownColor = cardClues.find(c => c.type === 'color')?.value as string | undefined;
     const knownRank = cardClues.find(c => c.type === 'rank')?.value as number | undefined;
     const fw = this.fw(view);
 
-    // Allow fully known playable cards
+    // Fully known → certain play
     if (knownColor && knownRank) return fw[knownColor] + 1 === knownRank;
 
-    // Allow rank-only if highly likely playable (rank 1 or most colors need it)
+    // Rank-only → play if most colors need it
     if (!knownColor && knownRank) return this.isRankOnlyPlayable(fw, knownRank);
+
+    // Color-only → play if recently hinted (likely play signal)
+    if (knownColor && !knownRank) {
+      const needed = fw[knownColor] + 1;
+      if (needed <= 5) {
+        const recentHint = cardClues.find(c => c.type === 'color' && c.turnGiven >= view.turn - 3);
+        if (recentHint) return true;
+      }
+    }
 
     return false; // blind play
   }
