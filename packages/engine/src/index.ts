@@ -47,3 +47,11 @@ export type { VariantConfig } from './variants.js';
 // AI Context
 export { buildAIContext, buildAIContextCompact, buildIntentInferencePrompt, buildAIContextWithInference, GAME_RULES } from './ai-context.js';
 export type { AIContextOptions } from './ai-context.js';
+
+// Card Tracker
+export {
+  buildPossibilities, applyNegativeClues, getUniqueIdentity,
+  getPossibleCards, isDefinitelyPlayable, isProbablyPlayable,
+  isDefinitelyUseless, dangerScore,
+} from './card-tracker.js';
+export type { CardPossibilities } from './card-tracker.js';
