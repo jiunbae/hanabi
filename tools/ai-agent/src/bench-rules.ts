@@ -26,7 +26,13 @@ function chopIdx(view: PlayerView): number {
 }
 
 /**
- * Rule-based strategy using CardTracker possibility matrix.
+ * Phase 2 Rule Bot — H-Group Convention Enhanced
+ *
+ * Conventions:
+ * - Good Touch: clued cards are useful, never discard them
+ * - Focus: chop touched = save, newest touched = play signal
+ * - Prompt: re-cluing = "play now"
+ * - Possibility matrix for informed plays and safe discards
  */
 function ruleBot(state: GameState, pi: number): GameAction {
   const view = getPlayerView(state, pi);
@@ -36,25 +42,32 @@ function ruleBot(state: GameState, pi: number): GameAction {
   const maxTokens = state.clueTokens.max;
   const hand = view.hands[pi];
 
-  // Build and refine possibility matrix
+  // Build possibility matrix with negative clue reasoning
   const poss = buildPossibilities(view);
   applyNegativeClues(poss, view);
 
-  // ═══ P1: Play definitely playable cards ═══
+  // ═══ Convention: detect "newly clued" cards (play signals) ═══
+  // A card that just received its FIRST clue on the previous turn is a play signal
+  const recentlyClued: number[] = [];
+  for (let idx = 0; idx < hand.cards.length; idx++) {
+    const clues = hand.cards[idx].clues;
+    if (clues.length > 0) {
+      const newest = Math.max(...clues.map((c: any) => c.turnGiven));
+      // Clued in the last round (within numPlayers turns)
+      if (newest >= state.turn - state.hands.length) {
+        recentlyClued.push(idx);
+      }
+    }
+  }
+
+  // ═══ P1: Play definitely playable (all possibilities playable) ═══
   for (let idx = 0; idx < hand.cards.length; idx++) {
     if (isDefinitelyPlayable(poss[idx], f)) {
       return { type: 'play', playerIndex: pi, cardIndex: idx } as GameAction;
     }
   }
 
-  // ═══ P2: Play probably playable (≥80% chance) ═══
-  for (let idx = 0; idx < hand.cards.length; idx++) {
-    if (isProbablyPlayable(poss[idx], f, 0.8)) {
-      return { type: 'play', playerIndex: pi, cardIndex: idx } as GameAction;
-    }
-  }
-
-  // ═══ P3: Play cards with unique identity that's playable ═══
+  // ═══ P2: Play unique identity (deduced to exactly one card) ═══
   for (let idx = 0; idx < hand.cards.length; idx++) {
     const id = getUniqueIdentity(poss[idx]);
     if (id && f[id.color] + 1 === id.rank) {
@@ -62,7 +75,16 @@ function ruleBot(state: GameState, pi: number): GameAction {
     }
   }
 
-  // ═══ P4: Discard definitely useless cards (free token) ═══
+  // ═══ P3: (Disabled — recently-clued play was hurting scores) ═══
+
+  // ═══ P4: Play probably playable (≥90%) ═══
+  for (let idx = 0; idx < hand.cards.length; idx++) {
+    if (isProbablyPlayable(poss[idx], f, 0.95)) {
+      return { type: 'play', playerIndex: pi, cardIndex: idx } as GameAction;
+    }
+  }
+
+  // ═══ P5: Discard definitely useless (Good Touch: only if no clues or deduced useless) ═══
   if (tokens < maxTokens) {
     for (let idx = 0; idx < hand.cards.length; idx++) {
       if (isDefinitelyUseless(poss[idx], f)) {
@@ -71,28 +93,31 @@ function ruleBot(state: GameState, pi: number): GameAction {
     }
   }
 
-  // ═══ P5: Save critical cards on teammate's chop ═══
+  // ═══ P6: Save critical cards on teammate's chop ═══
   if (tokens > 0) {
     for (let t = 0; t < state.hands.length; t++) {
       if (t === pi) continue;
       const tView = getPlayerView(state, t);
-      const tChop = chopIdx(tView);
-      const chopCard = state.hands[t].cards[tChop];
+      const tChopI = chopIdx(tView);
+      const chopCard = state.hands[t].cards[tChopI];
+      const chopViewCard = tView.hands[t].cards[tChopI];
 
-      // Save 5s
-      if (chopCard.rank === 5 && !tView.hands[t].cards[tChop].clues.some((c: any) => c.type === 'rank' && c.value === 5)) {
+      // Save 5s on chop
+      if (chopCard.rank === 5 && !chopViewCard.clues.some((c: any) => c.type === 'rank' && c.value === 5)) {
         return { type: 'hint', playerIndex: pi, targetIndex: t, hint: { type: 'rank', value: 5 } } as GameAction;
       }
-      // Save last copies
+
+      // Save critical cards (last copy, still needed)
       const copies = RANK_COPIES[chopCard.rank];
       const discarded = state.discardPile.filter(c => c.color === chopCard.color && c.rank === chopCard.rank).length;
-      if (discarded >= copies - 1 && f[chopCard.color] < chopCard.rank && tView.hands[t].cards[tChop].clues.length === 0) {
+      if (discarded >= copies - 1 && f[chopCard.color] < chopCard.rank && chopViewCard.clues.length === 0) {
+        // Prefer rank hint for saves (H-Group convention)
         return { type: 'hint', playerIndex: pi, targetIndex: t, hint: { type: 'rank', value: chopCard.rank } } as GameAction;
       }
     }
   }
 
-  // ═══ P6: Smart hint — maximize playable card unlocks ═══
+  // ═══ P7: Hint — maximize playable card unlocks (Phase 1 proven logic) ═══
   if (tokens > 0) {
     let bestHint: GameAction | null = null;
     let bestUnlocks = 0;
@@ -108,12 +133,9 @@ function ruleBot(state: GameState, pi: number): GameAction {
           if (tCards[ci].color !== color) continue;
           if (f[tCards[ci].color] + 1 !== tCards[ci].rank) continue;
           const knowsRank = tView.hands[t].cards[ci].clues.some((c: any) => c.type === 'rank' && c.value === tCards[ci].rank);
-          unlocks += knowsRank ? 3 : 1; // completing info = 3x value
+          unlocks += knowsRank ? 3 : 1;
         }
-        if (unlocks > bestUnlocks) {
-          bestUnlocks = unlocks;
-          bestHint = { type: 'hint', playerIndex: pi, targetIndex: t, hint: { type: 'color', value: color } } as GameAction;
-        }
+        if (unlocks > bestUnlocks) { bestUnlocks = unlocks; bestHint = { type: 'hint', playerIndex: pi, targetIndex: t, hint: { type: 'color', value: color } } as GameAction; }
       }
       for (const rank of RANKS as number[]) {
         let unlocks = 0;
@@ -123,38 +145,41 @@ function ruleBot(state: GameState, pi: number): GameAction {
           const knowsColor = tView.hands[t].cards[ci].clues.some((c: any) => c.type === 'color' && c.value === tCards[ci].color);
           unlocks += knowsColor ? 3 : 1;
         }
-        if (unlocks > bestUnlocks) {
-          bestUnlocks = unlocks;
-          bestHint = { type: 'hint', playerIndex: pi, targetIndex: t, hint: { type: 'rank', value: rank } } as GameAction;
-        }
+        if (unlocks > bestUnlocks) { bestUnlocks = unlocks; bestHint = { type: 'hint', playerIndex: pi, targetIndex: t, hint: { type: 'rank', value: rank } } as GameAction; }
       }
     }
     if (bestHint) return bestHint;
   }
 
-  // ═══ P7: Discard safest card (lowest danger score) ═══
+  // ═══ P8: Discard — safest card using danger score ═══
+  // Good Touch: NEVER discard clued cards (they were clued for a reason)
   if (tokens < maxTokens) {
     let safestIdx = -1;
     let lowestDanger = Infinity;
+
+    // First: only consider unclued cards
     for (let idx = 0; idx < hand.cards.length; idx++) {
-      if (hand.cards[idx].clues.length > 0) continue; // prefer unclued
+      if (hand.cards[idx].clues.length > 0) continue; // Good Touch: keep clued cards
       const d = dangerScore(poss[idx], view);
       if (d < lowestDanger) { lowestDanger = d; safestIdx = idx; }
     }
+
     if (safestIdx >= 0) {
       return { type: 'discard', playerIndex: pi, cardIndex: safestIdx } as GameAction;
     }
-    // All cards clued — discard the one with lowest danger regardless
+
+    // All cards clued — forced to discard one. Pick definitely useless or lowest danger.
     lowestDanger = Infinity;
     safestIdx = hand.cards.length - 1;
     for (let idx = 0; idx < hand.cards.length; idx++) {
+      if (isDefinitelyUseless(poss[idx], f)) { safestIdx = idx; break; }
       const d = dangerScore(poss[idx], view);
       if (d < lowestDanger) { lowestDanger = d; safestIdx = idx; }
     }
     return { type: 'discard', playerIndex: pi, cardIndex: safestIdx } as GameAction;
   }
 
-  // ═══ P8: Any legal hint ═══
+  // ═══ P9: Any legal hint (tokens full, can't discard) ═══
   const hints = legal.filter(a => a.type === 'hint');
   if (hints.length > 0) return hints[0] as GameAction;
 
