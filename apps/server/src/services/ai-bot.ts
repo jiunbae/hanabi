@@ -562,39 +562,55 @@ class AIBotService {
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 4: Hint about playable cards (only if teammate doesn't already know)
+    // PRIORITY 4: Smart hint — pick hint that unlocks most playable cards
     // ════════════════════════════════════════════
     if (clueTokens > 0) {
       let bestHint: GameAction | null = null;
-      let bestScore = -1;
+      let bestUnlocks = -1;
 
       for (let i = 0; i < view.hands.length; i++) {
         if (i === playerIndex) continue;
         const hand = view.hands[i];
 
-        // Skip if teammate already has known playable cards (let them play first)
-        if (this.countKnownPlayables(hand, fw) > 0) continue;
+        // Score each possible color hint by how many playable cards it unlocks
+        for (const color of ['red', 'yellow', 'green', 'blue', 'white']) {
+          let unlocks = 0;
+          for (let ci = 0; ci < hand.cards.length; ci++) {
+            const card = hand.cards[ci];
+            if (!card.color || card.color !== color) continue;
+            if (!this.isPlayable(fw, card.color, card.rank!)) continue;
+            const knowsRank = card.clues.some(c => c.type === 'rank' && c.value === card.rank);
+            // This color hint completes their knowledge → they can play
+            if (knowsRank) unlocks += 2;
+            // First clue on a playable card → partial info but useful
+            else if (card.clues.length === 0) unlocks += 1;
+            else unlocks += 0.5;
+          }
+          if (unlocks > bestUnlocks) {
+            bestUnlocks = unlocks;
+            bestHint = { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'color', value: color } } as GameAction;
+          }
+        }
 
-        for (let cardIdx = 0; cardIdx < hand.cards.length; cardIdx++) {
-          const card = hand.cards[cardIdx];
-          if (!card.color || !card.rank) continue;
-          if (!this.isPlayable(fw, card.color, card.rank)) continue;
-
-          const knowsColor = card.clues.some(c => c.type === 'color' && c.value === card.color);
-          const knowsRank = card.clues.some(c => c.type === 'rank' && c.value === card.rank);
-          if (knowsColor && knowsRank) continue;
-
-          // Score: prefer lower ranks, prefer giving the missing piece of info
-          const score = (6 - card.rank) * 10 + (knowsRank ? 0 : 5) + (knowsColor ? 0 : 3);
-          if (score > bestScore) {
-            bestScore = score;
-            bestHint = !knowsRank
-              ? { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'rank', value: card.rank } } as GameAction
-              : { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'color', value: card.color } } as GameAction;
+        // Score each rank hint
+        for (const rank of [1, 2, 3, 4, 5]) {
+          let unlocks = 0;
+          for (let ci = 0; ci < hand.cards.length; ci++) {
+            const card = hand.cards[ci];
+            if (!card.rank || card.rank !== rank) continue;
+            if (!card.color || !this.isPlayable(fw, card.color, card.rank)) continue;
+            const knowsColor = card.clues.some(c => c.type === 'color' && c.value === card.color);
+            if (knowsColor) unlocks += 2;
+            else if (card.clues.length === 0) unlocks += 1;
+            else unlocks += 0.5;
+          }
+          if (unlocks > bestUnlocks) {
+            bestUnlocks = unlocks;
+            bestHint = { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'rank', value: rank } } as GameAction;
           }
         }
       }
-      if (bestHint) return bestHint;
+      if (bestHint && bestUnlocks > 0) return bestHint;
     }
 
     // ════════════════════════════════════════════
@@ -650,33 +666,13 @@ class AIBotService {
     return { ...view.legalActions[0] } as GameAction;
   }
 
-  /** Validate that the LLM's action is safe */
+  /** Validate LLM action — ZeroGuard: only reject plays with 0 clues (blind) */
   private isSafeAction(action: GameAction, view: PlayerView, playerIndex: number): boolean {
     if (action.type !== 'play') return true;
-
     const card = view.hands[playerIndex].cards[action.cardIndex];
     if (!card) return false;
-    const cardClues = card.clues ?? [];
-    const knownColor = cardClues.find(c => c.type === 'color')?.value as string | undefined;
-    const knownRank = cardClues.find(c => c.type === 'rank')?.value as number | undefined;
-    const fw = this.fw(view);
-
-    // Fully known → certain play
-    if (knownColor && knownRank) return fw[knownColor] + 1 === knownRank;
-
-    // Rank-only → play if most colors need it
-    if (!knownColor && knownRank) return this.isRankOnlyPlayable(fw, knownRank);
-
-    // Color-only → play if recently hinted (likely play signal)
-    if (knownColor && !knownRank) {
-      const needed = fw[knownColor] + 1;
-      if (needed <= 5) {
-        const recentHint = cardClues.find(c => c.type === 'color' && c.turnGiven >= view.turn - 3);
-        if (recentHint) return true;
-      }
-    }
-
-    return false; // blind play
+    // ZeroGuard: trust LLM if card has ANY clue info, reject only completely blind plays
+    return card.clues.length > 0;
   }
 
   private async playTurn(gameId: string, playerIndex: number): Promise<void> {
