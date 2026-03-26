@@ -50,7 +50,7 @@ export type { AIContextOptions } from './ai-context.js';
 
 // Card Tracker
 export {
-  buildPossibilities, applyNegativeClues, getUniqueIdentity,
+  buildPossibilities, applyNegativeClues, applyGoodTouchElimination, getUniqueIdentity,
   getPossibleCards, isDefinitelyPlayable, isProbablyPlayable,
   isDefinitelyUseless, dangerScore,
 } from './card-tracker.js';

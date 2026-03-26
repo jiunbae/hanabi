@@ -153,6 +153,42 @@ export function applyNegativeClues(
 }
 
 /**
+ * Good Touch Elimination: clued cards can't be already-played cards.
+ * A competent player never wastes a clue on a useless card, so any
+ * clued card must still be needed.
+ */
+export function applyGoodTouchElimination(
+  possibilities: CardPossibilities[],
+  view: PlayerView,
+): void {
+  const fw = view.fireworks as unknown as Record<string, number>;
+
+  for (let idx = 0; idx < possibilities.length; idx++) {
+    const card = view.hands[view.myIndex].cards[idx];
+    // Only apply to cards with at least one clue
+    if (card.clues.length === 0) continue;
+
+    for (let c = 0; c < 5; c++) {
+      for (let r = 0; r < 5; r++) {
+        if (!possibilities[idx].possible[c][r]) continue;
+        // If this card identity is already played, eliminate it
+        if (fw[COLORS[c]] >= RANKS[r]) {
+          possibilities[idx].possible[c][r] = false;
+        }
+      }
+    }
+
+    // Recount
+    possibilities[idx].count = 0;
+    for (let c = 0; c < 5; c++) {
+      for (let r = 0; r < 5; r++) {
+        if (possibilities[idx].possible[c][r]) possibilities[idx].count++;
+      }
+    }
+  }
+}
+
+/**
  * Get the unique identity of a card if only one possibility remains.
  */
 export function getUniqueIdentity(p: CardPossibilities): { color: string; rank: number } | null {

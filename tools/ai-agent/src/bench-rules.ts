@@ -9,7 +9,7 @@ import {
   COLORS, RANKS, RANK_COPIES,
 } from '../../../packages/engine/dist/index.js';
 import {
-  buildPossibilities, applyNegativeClues, getUniqueIdentity,
+  buildPossibilities, applyNegativeClues, applyGoodTouchElimination, getUniqueIdentity,
   isDefinitelyPlayable, isProbablyPlayable, isDefinitelyUseless, dangerScore,
   getPossibleCards,
 } from '../../../packages/engine/dist/card-tracker.js';
@@ -46,6 +46,36 @@ function ruleBot(state: GameState, pi: number): GameAction {
   const poss = buildPossibilities(view);
   applyNegativeClues(poss, view);
 
+  // ═══ Convention 1: Focus-based signal interpretation ═══
+  // Scan action history for hints targeting me, determine play/save signals
+  const playSignals = new Set<number>(); // card indices marked as "play"
+  const saveSignals = new Set<number>(); // card indices marked as "save"
+
+  for (const action of view.actionHistory) {
+    if (action.type !== 'hint' || action.targetIndex !== pi) continue;
+
+    // Find which cards were newly touched by this hint
+    const touchedIndices: number[] = [];
+    for (let idx = 0; idx < hand.cards.length; idx++) {
+      const hasThisClue = hand.cards[idx].clues.some(
+        (c: any) => c.type === action.hint.type && c.value === action.hint.value
+      );
+      if (hasThisClue) touchedIndices.push(idx);
+    }
+
+    if (touchedIndices.length === 0) continue; // empty hint
+
+    // Focus: if chop (oldest unclued) was touched → save, else → play newest touched
+    const myChop = chopIdx(view);
+    if (touchedIndices.includes(myChop)) {
+      saveSignals.add(myChop);
+    } else {
+      // Play signal on the newest touched card (highest index = newest draw)
+      const focusIdx = Math.max(...touchedIndices);
+      playSignals.add(focusIdx);
+    }
+  }
+
   // ═══ Convention: detect "newly clued" cards (play signals) ═══
   // A card that just received its FIRST clue on the previous turn is a play signal
   const recentlyClued: number[] = [];
@@ -75,14 +105,9 @@ function ruleBot(state: GameState, pi: number): GameAction {
     }
   }
 
-  // ═══ P3: (Disabled — recently-clued play was hurting scores) ═══
+  // ═══ P3: (Convention 1 play signals — disabled, net negative effect) ═══
 
-  // ═══ P4: Play probably playable (≥90%) ═══
-  for (let idx = 0; idx < hand.cards.length; idx++) {
-    if (isProbablyPlayable(poss[idx], f, 0.95)) {
-      return { type: 'play', playerIndex: pi, cardIndex: idx } as GameAction;
-    }
-  }
+  // ═══ P4: (Disabled — isProbablyPlayable causes too many strikes with Good Touch) ═══
 
   // ═══ P5: Discard definitely useless (Good Touch: only if no clues or deduced useless) ═══
   if (tokens < maxTokens) {
@@ -117,7 +142,7 @@ function ruleBot(state: GameState, pi: number): GameAction {
     }
   }
 
-  // ═══ P7: Hint — maximize playable card unlocks (Phase 1 proven logic) ═══
+  // ═══ P7: Hint — maximize playable card unlocks (proven best) ═══
   if (tokens > 0) {
     let bestHint: GameAction | null = null;
     let bestUnlocks = 0;
@@ -160,6 +185,7 @@ function ruleBot(state: GameState, pi: number): GameAction {
     // First: only consider unclued cards
     for (let idx = 0; idx < hand.cards.length; idx++) {
       if (hand.cards[idx].clues.length > 0) continue; // Good Touch: keep clued cards
+      if (saveSignals.has(idx)) continue; // Convention 1: keep saved cards
       const d = dangerScore(poss[idx], view);
       if (d < lowestDanger) { lowestDanger = d; safestIdx = idx; }
     }
