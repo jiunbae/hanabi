@@ -4,7 +4,12 @@
  * Manages server-side AI players that use LLM APIs to play Nolbul.
  * Hooks into GameManager events to auto-play when it's an AI player's turn.
  */
-import { buildAIContext, buildAIContextCompact, buildIntentInferencePrompt, buildAIContextWithInference, getPlayerView } from '@nolbul/engine';
+import {
+  buildAIContext, buildAIContextCompact, buildIntentInferencePrompt, buildAIContextWithInference, getPlayerView,
+  buildPossibilities, applyNegativeClues, isDefinitelyPlayable, getUniqueIdentity,
+  isProbablyPlayable, isDefinitelyUseless, dangerScore,
+  COLORS, RANKS, RANK_COPIES,
+} from '@nolbul/engine';
 import type { GameAction, PlayerView } from '@nolbul/engine';
 import { gameManager } from './game-manager.js';
 import { readFileSync } from 'fs';
@@ -484,56 +489,51 @@ class AIBotService {
     return count;
   }
 
-  /** Compute strategic action using H-Group conventions (v2 — balanced play/hint/discard) */
+  /** Compute strategic action using CardTracker possibility matrix */
   private getSmartAction(view: PlayerView, playerIndex: number): GameAction {
     const myHand = view.hands[playerIndex];
     const fw = this.fw(view);
     const clueTokens = view.clueTokens.current;
     const maxTokens = view.clueTokens.max;
 
-    // ════════════════════════════════════════════
-    // PRIORITY 1: Play known-playable cards (ALWAYS first)
-    // ════════════════════════════════════════════
-    // 1a. Fully known (color + rank) — certain play
-    for (let idx = 0; idx < myHand.cards.length; idx++) {
-      const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
-      if (color && rank && this.isPlayable(fw, color, rank)) {
-        return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
-      }
-    }
+    // Build possibility matrix with negative clue reasoning
+    const poss = buildPossibilities(view);
+    applyNegativeClues(poss, view);
 
-    // 1b. Color-only play: if I know the color and only 1 rank is needed for that color
+    // ════════════════════════════════════════════
+    // PRIORITY 1: Play definitely playable (all possibilities are playable)
+    // ════════════════════════════════════════════
     for (let idx = 0; idx < myHand.cards.length; idx++) {
-      const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
-      if (color && !rank) {
-        const needed = fw[color] + 1;
-        if (needed <= 5) {
-          // Recently received hint about this color — likely a play signal
-          const recentHint = myHand.cards[idx].clues.find(
-            c => c.type === 'color' && c.turnGiven >= view.turn - 2
-          );
-          if (recentHint) {
-            return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
-          }
-        }
-      }
-    }
-
-    // 1c. Rank-only play: rank 1 (always playable somewhere) or most colors need it
-    for (let idx = 0; idx < myHand.cards.length; idx++) {
-      const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
-      if (!color && rank && this.isRankOnlyPlayable(fw, rank)) {
+      if (isDefinitelyPlayable(poss[idx], fw)) {
         return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
       }
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 2: Discard known-useless cards (free tempo — no token cost)
+    // PRIORITY 1b: Play uniquely deduced card
+    // ════════════════════════════════════════════
+    for (let idx = 0; idx < myHand.cards.length; idx++) {
+      const id = getUniqueIdentity(poss[idx]);
+      if (id && fw[id.color] + 1 === id.rank) {
+        return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
+      }
+    }
+
+    // ════════════════════════════════════════════
+    // PRIORITY 1c: Play probably playable (≥95% certainty)
+    // ════════════════════════════════════════════
+    for (let idx = 0; idx < myHand.cards.length; idx++) {
+      if (isProbablyPlayable(poss[idx], fw, 0.95)) {
+        return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
+      }
+    }
+
+    // ════════════════════════════════════════════
+    // PRIORITY 2: Discard definitely useless cards
     // ════════════════════════════════════════════
     if (clueTokens < maxTokens) {
       for (let idx = 0; idx < myHand.cards.length; idx++) {
-        const { color, rank } = this.getKnownInfo(myHand.cards[idx]);
-        if (color && rank && this.isUseless(fw, color, rank)) {
+        if (isDefinitelyUseless(poss[idx], fw)) {
           return { type: 'discard', playerIndex, cardIndex: idx } as GameAction;
         }
       }
@@ -614,65 +614,49 @@ class AIBotService {
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 5: Strategic discard (free up hand space + gain token)
+    // PRIORITY 5: Discard safest card (danger-score based)
     // ════════════════════════════════════════════
-    // Discard if: tokens low (≤ 3), or no useful hints available, or hand is full of unknowns
-    const shouldDiscard = clueTokens <= 3 || clueTokens < maxTokens;
-    if (shouldDiscard) {
-      const discards = view.legalActions.filter(a => a.type === 'discard');
-      if (discards.length > 0) {
-        const chopIdx = this.getChopIndex(myHand);
-        if (myHand.cards[chopIdx].clues.length === 0) {
-          return { type: 'discard', playerIndex, cardIndex: chopIdx } as GameAction;
-        }
-        // Find any unclued card
-        for (let idx = myHand.cards.length - 1; idx >= 0; idx--) {
-          if (myHand.cards[idx].clues.length === 0) {
-            return { type: 'discard', playerIndex, cardIndex: idx } as GameAction;
-          }
-        }
+    if (clueTokens < maxTokens) {
+      let safestIdx = -1;
+      let lowestDanger = Infinity;
+      for (let idx = 0; idx < myHand.cards.length; idx++) {
+        if (myHand.cards[idx].clues.length > 0) continue; // Good Touch: keep clued cards
+        const d = dangerScore(poss[idx], view);
+        if (d < lowestDanger) { lowestDanger = d; safestIdx = idx; }
       }
-    }
-
-    // ════════════════════════════════════════════
-    // PRIORITY 6: Future hints (only if tokens are plentiful ≥ 5)
-    // ════════════════════════════════════════════
-    if (clueTokens >= 5) {
-      for (let i = 0; i < view.hands.length; i++) {
-        if (i === playerIndex) continue;
-        for (const card of view.hands[i].cards) {
-          if (!card.color || !card.rank) continue;
-          const needed = fw[card.color] + 1;
-          if (card.rank === needed + 1 && card.clues.length === 0) {
-            return { type: 'hint', playerIndex, targetIndex: i, hint: { type: 'rank', value: card.rank } } as GameAction;
-          }
-        }
+      if (safestIdx >= 0) {
+        return { type: 'discard', playerIndex, cardIndex: safestIdx } as GameAction;
       }
+      // All clued — discard least dangerous
+      for (let idx = 0; idx < myHand.cards.length; idx++) {
+        if (isDefinitelyUseless(poss[idx], fw)) {
+          return { type: 'discard', playerIndex, cardIndex: idx } as GameAction;
+        }
+        const d = dangerScore(poss[idx], view);
+        if (d < lowestDanger) { lowestDanger = d; safestIdx = idx; }
+      }
+      if (safestIdx >= 0) return { type: 'discard', playerIndex, cardIndex: safestIdx } as GameAction;
+      return { type: 'discard', playerIndex, cardIndex: myHand.cards.length - 1 } as GameAction;
     }
 
-    // ════════════════════════════════════════════
-    // PRIORITY 7: Discard chop as last resort
-    // ════════════════════════════════════════════
-    const discards2 = view.legalActions.filter(a => a.type === 'discard');
-    if (discards2.length > 0) {
-      const chopIdx = this.getChopIndex(myHand);
-      return { type: 'discard', playerIndex, cardIndex: chopIdx } as GameAction;
-    }
-
-    // PRIORITY 8: Any legal hint (tokens full, can't discard)
+    // PRIORITY 6: Any legal hint (tokens full, can't discard)
     const hints = view.legalActions.filter(a => a.type === 'hint');
     if (hints.length > 0) return { ...hints[0] } as GameAction;
 
     return { ...view.legalActions[0] } as GameAction;
   }
 
-  /** Validate LLM action — ZeroGuard: only reject plays with 0 clues (blind) */
+  /** Validate LLM action — CardTracker-informed guard */
   private isSafeAction(action: GameAction, view: PlayerView, playerIndex: number): boolean {
     if (action.type !== 'play') return true;
     const card = view.hands[playerIndex].cards[action.cardIndex];
     if (!card) return false;
-    // ZeroGuard: trust LLM if card has ANY clue info, reject only completely blind plays
-    return card.clues.length > 0;
+    // Reject completely blind plays
+    if (card.clues.length === 0) return false;
+    // Use CardTracker: accept if probably playable (≥50%)
+    const poss = buildPossibilities(view);
+    applyNegativeClues(poss, view);
+    return isProbablyPlayable(poss[action.cardIndex], this.fw(view), 0.5);
   }
 
   private async playTurn(gameId: string, playerIndex: number): Promise<void> {
