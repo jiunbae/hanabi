@@ -496,9 +496,10 @@ class AIBotService {
     const clueTokens = view.clueTokens.current;
     const maxTokens = view.clueTokens.max;
 
-    // Build possibility matrix with negative clue reasoning
+    // Build possibility matrix (skip negative clues — index shift bug causes false plays)
     const poss = buildPossibilities(view);
-    applyNegativeClues(poss, view);
+    // Note: applyNegativeClues removed — it applies old hints to shifted card positions,
+    // causing false elimination and strikes. See Exp B analysis.
 
     // ════════════════════════════════════════════
     // PRIORITY 1: Play definitely playable (all possibilities are playable)
@@ -510,9 +511,10 @@ class AIBotService {
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 1b: Play uniquely deduced card
+    // PRIORITY 1b: Play uniquely deduced card (with positive clue validation)
     // ════════════════════════════════════════════
     for (let idx = 0; idx < myHand.cards.length; idx++) {
+      if (myHand.cards[idx].clues.length === 0) continue; // need at least 1 clue
       const id = getUniqueIdentity(poss[idx]);
       if (id && fw[id.color] + 1 === id.rank) {
         return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
@@ -520,11 +522,39 @@ class AIBotService {
     }
 
     // ════════════════════════════════════════════
-    // PRIORITY 1c: Play probably playable (≥95% certainty)
+    // PRIORITY 1c: Sender-receiver sync — play signals from teammate hints
     // ════════════════════════════════════════════
-    for (let idx = 0; idx < myHand.cards.length; idx++) {
-      if (isProbablyPlayable(poss[idx], fw, 0.95)) {
-        return { type: 'play', playerIndex, cardIndex: idx } as GameAction;
+    // For each hint I received (newest first), check: would the giver have
+    // intended this as a play clue? (Both bots run same code = same conclusion)
+    for (let hi = view.actionHistory.length - 1; hi >= 0; hi--) {
+      const action = view.actionHistory[hi];
+      if (action.type !== 'hint' || action.targetIndex !== playerIndex) continue;
+
+      // Find touched cards in my hand
+      const touchedIndices: number[] = [];
+      for (let idx = 0; idx < myHand.cards.length; idx++) {
+        if (myHand.cards[idx].clues.some(c => c.type === action.hint.type && c.value === action.hint.value)) {
+          touchedIndices.push(idx);
+        }
+      }
+      if (touchedIndices.length === 0) continue;
+
+      // Skip if chop was touched (= save signal)
+      const chopIdx = this.getChopIndex(myHand);
+      if (touchedIndices.includes(chopIdx)) continue;
+
+      // Focus = newest touched card
+      const focusIdx = Math.max(...touchedIndices);
+
+      // Sender-receiver sync: would the giver have seen this as touching a playable card?
+      // We check the CURRENT state (giver could see my cards)
+      for (let i = 0; i < view.hands.length; i++) {
+        if (i === playerIndex) continue;
+        // Check: does this hint touch any playable card in my hand from anyone's perspective?
+        // Since we can't see our own cards, we use the possibility matrix
+        if (isDefinitelyPlayable(poss[focusIdx], fw)) {
+          return { type: 'play', playerIndex, cardIndex: focusIdx } as GameAction;
+        }
       }
     }
 
@@ -653,9 +683,8 @@ class AIBotService {
     if (!card) return false;
     // Reject completely blind plays
     if (card.clues.length === 0) return false;
-    // Use CardTracker: accept if probably playable (≥50%)
+    // Use CardTracker (no negative clues — index shift bug)
     const poss = buildPossibilities(view);
-    applyNegativeClues(poss, view);
     return isProbablyPlayable(poss[action.cardIndex], this.fw(view), 0.5);
   }
 
