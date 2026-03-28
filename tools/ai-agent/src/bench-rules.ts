@@ -117,9 +117,21 @@ function ruleBot(state: GameState, pi: number): GameAction {
         if (myActualCard && f[myActualCard.color] + 1 === myActualCard.rank) {
           return { type: 'play', playerIndex: pi, cardIndex: focusIdx } as GameAction;
         }
-        if (isProbablyPlayable(poss[focusIdx], f, 0.5)) {
+        // Endgame: more aggressive. Normal: safer threshold.
+        const syncThreshold = state.turnsLeft !== null ? 0.4 : 0.65;
+        if (isProbablyPlayable(poss[focusIdx], f, syncThreshold)) {
           return { type: 'play', playerIndex: pi, cardIndex: focusIdx } as GameAction;
         }
+      }
+    }
+  }
+
+  // ═══ P4b: Endgame — play probably-playable if strikes budget allows ═══
+  if (state.turnsLeft !== null && state.strikes.current < 2) {
+    for (let idx = 0; idx < hand.cards.length; idx++) {
+      if (hand.cards[idx].clues.length === 0) continue;
+      if (isProbablyPlayable(poss[idx], f, 0.4)) {
+        return { type: 'play', playerIndex: pi, cardIndex: idx } as GameAction;
       }
     }
   }
