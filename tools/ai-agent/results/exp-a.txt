@@ -1,0 +1,34 @@
+Experiment A: Sender-Receiver Sync
+====================================
+Date: 2026-03-28
+Config: 500 games, 2 players
+
+BASELINE (no sync):
+  Avg: 14.0/25 | Best: 23 | Worst: 4 | Strikes: 1.37
+  Distribution: 0-4:1 5-9:30 10-14:240 15-19:223 20-24:6 25:0
+
+EXP A - Sender-Receiver Sync (--sync):
+  Avg: 17.2/25 | Best: 25 | Worst: 5 | Strikes: 1.19
+  Distribution: 0-4:0 5-9:7 10-14:93 15-19:284 20-24:115 25:1
+
+DELTA: +3.2 avg score, -0.18 avg strikes
+
+DESCRIPTION:
+  Added wouldBePlayClue() function that checks from the giver's perspective
+  whether a hint touches any immediately playable card in the target's hand.
+
+  When the receiver gets a non-chop hint, they simulate the giver's reasoning:
+  "If I were the giver (who can see my cards), would I have given this hint
+  because it touches a playable card?" If yes, and the focus card is STILL
+  playable at the current fireworks state, play it immediately.
+
+  This is the sender-receiver sync principle: since both bots run the same
+  code, the receiver can reconstruct the giver's intent by checking what the
+  giver could see at hint time.
+
+KEY RESULTS:
+  - Score improved significantly: 14.0 -> 17.2 (+22.9%)
+  - Strikes DECREASED: 1.37 -> 1.19 (safer play, not just more aggressive)
+  - 20-24 range: 6 -> 115 games (19x improvement in near-perfect games)
+  - First perfect score (25) achieved
+  - Zero games scoring 0-4 (was 1)

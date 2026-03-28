@@ -1,0 +1,71 @@
+Experiment B: Strike Reduction — ruleBotSafe
+=============================================
+
+Date: 2026-03-28
+Config: 500 games, 2 players, seeds 1000-1499
+
+## Results
+
+### Baseline (ruleBot)
+  Avg: 14.0/25 | Best: 23 | Worst: 4 | Strikes: 1.37
+  Distribution: 0-4:1 5-9:30 10-14:240 15-19:223 20-24:6 25:0
+
+### ruleBotSafe
+  Avg: 17.2/25 | Best: 22 | Worst: 10 | Strikes: 0.00
+  Distribution: 0-4:0 5-9:0 10-14:42 15-19:405 20-24:53 25:0
+
+## Delta
+  Score: +3.2 (14.0 -> 17.2, +22.9% improvement)
+  Strikes: -1.37 (1.37 -> 0.00, 100% reduction)
+  Worst case: +6 (4 -> 10)
+  20+ games: 6 -> 53 (8.8x increase)
+
+## Root Cause Analysis
+
+STEP 1 — Diagnosis (50-game sample with --diagnose):
+  All 64 strikes (100%) came from P1-definitelyPlayable.
+  Zero strikes from P2-uniqueIdentity or P3+.
+  In every case, the possibility matrix had been narrowed to 1 possibility,
+  but that possibility was WRONG (e.g., actual=yellow-1, poss=[white-1]).
+
+STEP 2 — Root Cause:
+  The bug is in applyNegativeClues() in card-tracker.ts.
+
+  When a color/rank hint is given, applyNegativeClues iterates over the
+  player's current hand and marks untouched cards as "not this color/rank".
+  However, it uses actionHistory which contains hints from earlier turns.
+
+  After a card is played/discarded and a new card is drawn, the hand's
+  card indices SHIFT — cards move to fill the gap and the new card gets
+  appended. But applyNegativeClues replays ALL historical hints against
+  the CURRENT hand positions, applying old negative information to cards
+  that weren't even in the hand when the hint was given.
+
+  This causes aggressive false elimination, narrowing cards to a single
+  wrong identity, which then passes isDefinitelyPlayable and causes a strike.
+
+STEP 3 — Fix (ruleBotSafe):
+  1. SKIP applyNegativeClues entirely — it's fundamentally broken with
+     shifting card indices. Only positive clues (embedded on each card
+     object) and visible-card elimination (from buildPossibilities) are
+     reliable.
+  2. Require at least one positive clue before trusting the matrix for
+     play decisions.
+  3. Add cross-hand validation for unique identity deductions.
+  4. Skip sync play (P3) in safe mode — too risky without validation.
+
+## Implementation
+
+  - New function: ruleBotSafe() in bench-rules.ts
+  - CLI flag: --safe to use ruleBotSafe instead of ruleBot
+  - CLI flag: --diagnose to log per-strike details
+  - Helper functions: countVisible(), verifiedPlayable(), verifiedUniqueIdentity()
+
+## Future Work
+
+  - Fix applyNegativeClues to track card IDs instead of indices, so negative
+    clue information survives card draws correctly. This would allow safe
+    negative reasoning and potentially even higher scores.
+  - The 0-strike result means the bot is now very conservative about playing.
+    With a fixed negative clue system, it could play more aggressively while
+    remaining safe.
