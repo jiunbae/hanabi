@@ -142,7 +142,7 @@ function ruleBot(state: GameState, pi: number): GameAction {
     }
   }
 
-  // ═══ P7: Hint — maximize playable card unlocks (proven best) ═══
+  // ═══ P7a: Hint about immediately playable cards (proven) ═══
   if (tokens > 0) {
     let bestHint: GameAction | null = null;
     let bestUnlocks = 0;
@@ -175,6 +175,8 @@ function ruleBot(state: GameState, pi: number): GameAction {
     }
     if (bestHint) return bestHint;
   }
+
+  // P7b removed — future hints cause more harm than good without coordinated play signals
 
   // ═══ P8: Discard — safest card using danger score ═══
   // Good Touch: NEVER discard clued cards (they were clued for a reason)
