@@ -9,7 +9,7 @@ import { readFileSync } from 'fs';
 
 // ─── Azure OpenAI Config ───
 const modelArg = process.argv.find((_, i, a) => a[i - 1] === '--model') ?? 'gpt-5-nano';
-const keyFile = JSON.parse(readFileSync(`${process.env.HOME}/keys/openai.azure.com/${modelArg}.json`, 'utf-8'));
+const keyFile = JSON.parse(readFileSync(`${process.env.AZURE_OPENAI_KEYS_DIR}/${modelArg}.json`, 'utf-8'));
 const keyEntry = keyFile[0];
 const apiKey = keyEntry.key;
 // Build chat completions endpoint from deployment name

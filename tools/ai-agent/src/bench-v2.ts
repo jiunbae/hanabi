@@ -19,8 +19,8 @@ import {
 import type { GameState, GameAction, PlayerView } from '../../../packages/engine/dist/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const NANO_KEY = JSON.parse(readFileSync(join(process.env.HOME!, 'keys/openai.azure.com/gpt-5-nano.json'), 'utf-8'))[0];
-const GPT5_KEY = JSON.parse(readFileSync(join(process.env.HOME!, 'keys/openai.azure.com/gpt-5.json'), 'utf-8'))[0];
+const NANO_KEY = JSON.parse(readFileSync(join(process.env.AZURE_OPENAI_KEYS_DIR!, 'gpt-5-nano.json'), 'utf-8'))[0];
+const GPT5_KEY = JSON.parse(readFileSync(join(process.env.AZURE_OPENAI_KEYS_DIR!, 'gpt-5.json'), 'utf-8'))[0];
 const PROMPT_CFG = JSON.parse(readFileSync(join(__dirname, '../../../apps/server/src/config/ai-prompts.json'), 'utf-8'));
 
 console.log('Bench v2 starting...');

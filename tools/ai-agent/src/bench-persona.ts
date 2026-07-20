@@ -25,8 +25,8 @@ import {
 import type { GameState, GameAction, PlayerView } from '../../../packages/engine/dist/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const NANO = JSON.parse(readFileSync(join(process.env.HOME!, 'keys/openai.azure.com/gpt-5-nano.json'), 'utf-8'))[0];
-const GPT5 = JSON.parse(readFileSync(join(process.env.HOME!, 'keys/openai.azure.com/gpt-5.json'), 'utf-8'))[0];
+const NANO = JSON.parse(readFileSync(join(process.env.AZURE_OPENAI_KEYS_DIR!, 'gpt-5-nano.json'), 'utf-8'))[0];
+const GPT5 = JSON.parse(readFileSync(join(process.env.AZURE_OPENAI_KEYS_DIR!, 'gpt-5.json'), 'utf-8'))[0];
 
 async function callLLM(ep: string, key: string, sys: string, user: string): Promise<string> {
   const r = await fetch(ep, { method: 'POST', headers: { 'Content-Type': 'application/json', 'api-key': key },
